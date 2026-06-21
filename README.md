@@ -22,7 +22,7 @@ SWP391/
 
 Trước khi chạy dự án, hãy đảm bảo máy tính của bạn đã cài đặt các công cụ sau:
 - **Java Development Kit (JDK)**: Phiên bản 17 trở lên.
-- **Node.js**: Phiên bản 18+ và công cụ quản lý gói **pnpm** (khuyên dùng) hoặc **npm**.
+- **Node.js**: Phiên bản 18+ và công cụ quản lý gói **npm**.
 - **MySQL Database**: Phiên bản 8.0 trở lên.
 
 ---
@@ -69,23 +69,13 @@ Trước khi chạy dự án, hãy đảm bảo máy tính của bạn đã cài
    cd PBMS-fe
    ```
 2. Cài đặt các thư viện phụ thuộc (dependencies):
-   - **Sử dụng pnpm (Khuyên dùng)**:
-     ```bash
-     pnpm install
-     ```
-   - **Hoặc sử dụng npm**:
-     ```bash
-     npm install
-     ```
+   ```bash
+   npm install
+   ```
 3. Chạy Frontend ở chế độ phát triển (development mode):
-   - **Sử dụng pnpm**:
-     ```bash
-     pnpm dev
-     ```
-   - **Hoặc sử dụng npm**:
-     ```bash
-     npm run dev
-     ```
+   ```bash
+   npm run dev
+   ```
 4. Ứng dụng Frontend sẽ chạy tại cổng mặc định của Vite: `http://localhost:5173`.
 
 ---
