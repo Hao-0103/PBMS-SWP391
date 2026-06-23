@@ -43,14 +43,14 @@ function FakeQR({ value, size = 140 }: { value: string; size?: number }) {
 /* ── Types & data ────────────────────────────────────────────────── */
 interface MonthlyCard {
   id: number; cardNo: string; maThe: string; nhomThe: string;
-  loaiXe: string; ngayDangKy: string; ngayHetHan: string;
+  loaiXe: string; bienSo: string; ngayDangKy: string; ngayHetHan: string;
   tangGuiXe?: string;
   trangThai: "Hoạt động" | "Hết hạn" | "Sắp hết hạn"; soNgayConLai: number;
 }
 
 const initialCards: MonthlyCard[] = [
-  { id: 1, cardNo: "0002100001", maThe: "TM001", nhomThe: "THẺ THÁNG XE MÁY", loaiXe: "Xe máy", ngayDangKy: "2024-01-05", ngayHetHan: "2024-12-31", trangThai: "Hoạt động", soNgayConLai: 351 },
-  { id: 2, cardNo: "0002100005", maThe: "TM005", nhomThe: "THẺ THÁNG XE MÁY", loaiXe: "Xe máy", ngayDangKy: "2023-12-01", ngayHetHan: "2024-01-10", trangThai: "Hết hạn",    soNgayConLai: -5 },
+  { id: 1, cardNo: "0002100001", maThe: "TM001", nhomThe: "THẺ THÁNG XE MÁY", loaiXe: "Xe máy", bienSo: "29X1-123.45", ngayDangKy: "2024-01-05", ngayHetHan: "2024-12-31", trangThai: "Hoạt động", soNgayConLai: 351 },
+  { id: 2, cardNo: "0002100005", maThe: "TM005", nhomThe: "THẺ THÁNG XE MÁY", loaiXe: "Xe máy", bienSo: "30F1-678.90", ngayDangKy: "2023-12-01", ngayHetHan: "2024-01-10", trangThai: "Hết hạn",    soNgayConLai: -5 },
 ];
 
 const PRICE_MAP: Record<string, number> = {
@@ -126,6 +126,7 @@ function AddCardModal({ onSave, onClose }: {
     cardNo: "",
     maThe: "",
     nhomThe: "THẺ THÁNG XE MÁY",
+    bienSo: "",
     tangGuiXe: "",
   });
   const [duration, setDuration] = useState(1);
@@ -140,7 +141,10 @@ function AddCardModal({ onSave, onClose }: {
   const ngayHetHan = isDayCard ? addDays(today, duration) : addMonths(today, duration);
 
   const handleNext = () => {
-    if (!form.cardNo.trim() || !form.maThe.trim()) { setErr("Vui lòng điền đầy đủ thông tin bắt buộc (*)"); return; }
+    if (!form.cardNo.trim() || !form.maThe.trim() || !form.bienSo.trim()) {
+      setErr("Vui lòng điền đầy đủ thông tin bắt buộc (*)");
+      return;
+    }
     if (isOto && !form.tangGuiXe) { setErr("Vui lòng chọn tầng gửi xe cho ô tô (*)"); return; }
     const data = {
       ...form,
@@ -180,6 +184,17 @@ function AddCardModal({ onSave, onClose }: {
                   <input className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400" placeholder="VD: 0002100010" value={form.cardNo} onChange={e => F("cardNo", e.target.value)} /></div>
                 <div><label className="block text-xs text-gray-600 mb-1">Mã thẻ <span className="text-red-500">*</span></label>
                   <input className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400" placeholder="VD: TM010" value={form.maThe} onChange={e => F("maThe", e.target.value)} /></div>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Biển số xe <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm uppercase focus:outline-none focus:border-blue-400"
+                  placeholder="VD: 29X1-123.45"
+                  value={form.bienSo}
+                  onChange={(e) => F("bienSo", e.target.value.toUpperCase())}
+                />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 mb-1">
@@ -272,8 +287,8 @@ function AddCardModal({ onSave, onClose }: {
         {step === "payment" && (
           <PaymentStep
             amount={price}
-            label={`Đăng ký thẻ ${form.maThe} — ${form.nhomThe}`}
-            qrKey={`ADD-${form.maThe}-${form.nhomThe}-${price}`}
+            label={`Đăng ký thẻ ${form.maThe} — ${form.bienSo}`}
+            qrKey={`ADD-${form.maThe}-${form.bienSo}-${form.nhomThe}-${price}`}
             onDone={handleDone}
             onClose={onClose}
           />
@@ -381,6 +396,7 @@ function DetailModal({ card, onClose }: { card: MonthlyCard; onClose: () => void
             ["Mã thẻ", card.maThe],
             ["Nhóm thẻ", card.nhomThe],
             ["Loại xe", card.loaiXe],
+            ["Biển số xe", card.bienSo],
             ...(card.loaiXe === "Ô tô" && card.tangGuiXe ? [["Tầng gửi xe", card.tangGuiXe]] : []),
             ["Ngày đăng ký", card.ngayDangKy],
             ["Ngày hết hạn", card.ngayHetHan],
@@ -463,9 +479,13 @@ export default function UserMonthlyCards() {
               </div>
               <StatusBadge card={card} />
             </div>
-            <div className={`px-4 py-3 grid gap-4 text-sm ${card.loaiXe === "Ô tô" && card.tangGuiXe ? "grid-cols-4" : "grid-cols-3"}`}>
+            <div className={`px-4 py-3 grid gap-4 text-sm ${card.loaiXe === "Ô tô" && card.tangGuiXe ? "grid-cols-5" : "grid-cols-4"}`}>
               <div><div className="text-xs text-gray-400 mb-0.5">Loại xe</div>
                 <span className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium ${card.loaiXe==="Xe máy"?"bg-blue-100 text-blue-700":"bg-amber-100 text-amber-700"}`}>{card.loaiXe}</span>
+              </div>
+              <div>
+                <div className="text-xs text-gray-400 mb-0.5">Biển số xe</div>
+                <div className="text-sm font-semibold text-gray-800 uppercase">{card.bienSo}</div>
               </div>
               {card.loaiXe === "Ô tô" && card.tangGuiXe && (
                 <div>
