@@ -11,6 +11,7 @@ import com.parking.pbms.repository.FloorRepository;
 import com.parking.pbms.repository.ParkingSlotRepository;
 import com.parking.pbms.repository.ParkingTicketRepository;
 import com.parking.pbms.repository.ParkingZoneRepository;
+import com.parking.pbms.repository.ReservationRepository;
 import com.parking.pbms.service.SlotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +33,7 @@ public class SlotServiceImpl implements SlotService {
     private final ParkingZoneRepository parkingZoneRepository;
     private final FloorRepository floorRepository;
     private final ParkingTicketRepository parkingTicketRepository;
+    private final ReservationRepository reservationRepository;
 
     @Override
     public List<SlotResponse> getAllSlots(Integer floorId, Integer zoneId, String status) {
@@ -170,15 +172,15 @@ public class SlotServiceImpl implements SlotService {
                 availableCarSlots = (int) parkingSlotRepository.countByFloorIdAndVehicleTypeAndStatus(floorId, "CAR", "AVAILABLE");
                 availableMotorcycleSlots = (int) parkingSlotRepository.countByFloorIdAndVehicleTypeAndStatus(floorId, "MOTORCYCLE", "AVAILABLE");
 
-                monthlyCarInside = (int) parkingTicketRepository.countActiveMonthlyTickets(floorId, "CAR", startOfDay, endOfDay);
-                monthlyMotorcycleInside = (int) parkingTicketRepository.countActiveMonthlyTickets(floorId, "MOTORCYCLE", startOfDay, endOfDay);
+                monthlyCarInside = (int) reservationRepository.countPreBookedNotCheckedIn(floorId, "CAR", date);
+                monthlyMotorcycleInside = (int) reservationRepository.countPreBookedNotCheckedIn(floorId, "MOTORCYCLE", date);
             } else {
                 // If historical, calculate from checked-in tickets
                 occupiedCarSlots = (int) parkingTicketRepository.countActiveTickets(floorId, "CAR", startOfDay, endOfDay);
                 occupiedMotorcycleSlots = (int) parkingTicketRepository.countActiveTickets(floorId, "MOTORCYCLE", startOfDay, endOfDay);
 
-                monthlyCarInside = (int) parkingTicketRepository.countActiveMonthlyTickets(floorId, "CAR", startOfDay, endOfDay);
-                monthlyMotorcycleInside = (int) parkingTicketRepository.countActiveMonthlyTickets(floorId, "MOTORCYCLE", startOfDay, endOfDay);
+                monthlyCarInside = (int) reservationRepository.countPreBookedNotCheckedIn(floorId, "CAR", date);
+                monthlyMotorcycleInside = (int) reservationRepository.countPreBookedNotCheckedIn(floorId, "MOTORCYCLE", date);
 
                 availableCarSlots = Math.max(0, totalCarSlots - occupiedCarSlots);
                 availableMotorcycleSlots = Math.max(0, totalMotorcycleSlots - occupiedMotorcycleSlots);

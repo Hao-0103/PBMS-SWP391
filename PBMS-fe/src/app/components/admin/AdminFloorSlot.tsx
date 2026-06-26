@@ -145,7 +145,7 @@ export default function AdminFloorSlot() {
             <CreditCard className="h-6 w-6" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Ô tô vé tháng đang gửi</div>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tổng ô tô đặt trước chưa gửi</div>
             <div className="text-2xl font-black text-indigo-600 mt-1">
               {loading ? "..." : stats?.monthlyCarInside ?? 0}
             </div>
@@ -158,7 +158,7 @@ export default function AdminFloorSlot() {
             <CreditCard className="h-6 w-6" />
           </div>
           <div>
-            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Xe máy vé tháng đang gửi</div>
+            <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Tổng xe máy đặt trước chưa gửi</div>
             <div className="text-2xl font-black text-amber-600 mt-1">
               {loading ? "..." : stats?.monthlyMotorcycleInside ?? 0}
             </div>
@@ -185,11 +185,11 @@ export default function AdminFloorSlot() {
                 <th className="px-4 py-3 text-center">Tổng slot ô tô</th>
                 <th className="px-4 py-3 text-center">Trống ô tô</th>
                 <th className="px-4 py-3 text-center">Ô tô đang gửi</th>
-                <th className="px-4 py-3 text-center">Ô tô vé tháng đang gửi</th>
+                <th className="px-4 py-3 text-center">Tổng ô tô đặt trước chưa gửi</th>
                 <th className="px-4 py-3 text-center">Tổng slot xe máy</th>
                 <th className="px-4 py-3 text-center">Trống xe máy</th>
                 <th className="px-4 py-3 text-center">Xe máy đang gửi</th>
-                <th className="px-4 py-3 text-center">Xe máy vé tháng đang gửi</th>
+                <th className="px-4 py-3 text-center">Tổng xe máy đặt trước chưa gửi</th>
               </tr>
             </thead>
             <tbody>

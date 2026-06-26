@@ -183,7 +183,7 @@ export default function StaffLayout({
               <span className="text-gray-700 font-medium">{breadcrumbMap[currentScreen]}</span>
             </div>
 
-            {assignment ? (
+            {assignment && (
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5 bg-blue-50/90 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold">
                   <span className="uppercase text-[9px] text-blue-500 font-extrabold tracking-wider">Tầng trực:</span>
@@ -194,38 +194,6 @@ export default function StaffLayout({
                   <span>{assignment.laneName} ({assignment.laneType === "ENTRY" ? "Vào" : "Ra"})</span>
                 </div>
               </div>
-            ) : (
-              <>
-                {/* Floor selection */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase">Tầng:</span>
-                  <select
-                    value={selectedFloorCode}
-                    onChange={(e) => onFloorChange(e.target.value)}
-                    className="h-6 text-[11px] bg-white border border-blue-300 rounded px-1.5 py-0 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
-                  >
-                    <option value="">-- Chọn tầng --</option>
-                    {floors.map(f => (
-                      <option key={f.floorId} value={f.floorCode}>{f.floorName}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Lane selection */}
-                <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-semibold text-gray-500 uppercase">Làn:</span>
-                  <select
-                    value={selectedLaneCode}
-                    onChange={(e) => onLaneChange(e.target.value)}
-                    className="h-6 text-[11px] bg-white border border-blue-300 rounded px-1.5 py-0 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
-                  >
-                    <option value="">-- Chọn làn --</option>
-                    {lanes.map(l => (
-                      <option key={l.laneId} value={l.laneCode}>{l.laneName} ({l.laneType === "ENTRY" ? "Vào" : "Ra"})</option>
-                    ))}
-                  </select>
-                </div>
-              </>
             )}
           </div>
           <div className="flex items-center gap-3">

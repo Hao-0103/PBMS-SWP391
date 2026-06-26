@@ -185,7 +185,7 @@ BEGIN
         UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Floors_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT CK_Floors_Type CHECK (VehicleType IN ('MOTORCYCLE', 'CAR', 'BOTH')),
         CONSTRAINT CK_Floors_TotalSlots CHECK (TotalSlots >= 0),
-        CONSTRAINT CK_Floors_Status CHECK (Status IN ('ACTIVE', 'INACTIVE', 'MAINTENANCE'))
+        CONSTRAINT CK_Floors_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
     );
 END;
 GO
@@ -200,7 +200,7 @@ BEGIN
         Status          VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingZones_Status DEFAULT 'ACTIVE',
         CONSTRAINT UQ_ParkingZones UNIQUE (FloorID, ZoneCode),
         CONSTRAINT FK_ParkingZones_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
-        CONSTRAINT CK_ParkingZones_Status CHECK (Status IN ('ACTIVE', 'INACTIVE', 'MAINTENANCE'))
+        CONSTRAINT CK_ParkingZones_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
     );
 END;
 GO
@@ -221,7 +221,7 @@ BEGIN
         CONSTRAINT FK_ParkingSlots_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
         CONSTRAINT FK_ParkingSlots_Zones FOREIGN KEY (ZoneID) REFERENCES dbo.ParkingZones(ZoneID),
         CONSTRAINT CK_ParkingSlots_Type CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
-        CONSTRAINT CK_ParkingSlots_Status CHECK (Status IN ('AVAILABLE', 'RESERVED', 'OCCUPIED', 'MAINTENANCE', 'DISABLED')),
+        CONSTRAINT CK_ParkingSlots_Status CHECK (Status IN ('AVAILABLE', 'RESERVED', 'OCCUPIED', 'DISABLED')),
         CONSTRAINT CK_ParkingSlots_Number CHECK (SlotNumber > 0)
     );
 END;
@@ -239,7 +239,7 @@ BEGIN
         Status          VARCHAR(20) NOT NULL CONSTRAINT DF_Lanes_Status DEFAULT 'ACTIVE',
         CONSTRAINT CK_Lanes_Type CHECK (LaneType IN ('ENTRY', 'EXIT')),
         CONSTRAINT CK_Lanes_VehicleType CHECK (VehicleType IN ('MOTORCYCLE', 'CAR', 'BOTH')),
-        CONSTRAINT CK_Lanes_Status CHECK (Status IN ('ACTIVE', 'INACTIVE', 'MAINTENANCE'))
+        CONSTRAINT CK_Lanes_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
     );
 END;
 GO
@@ -283,7 +283,6 @@ BEGIN
 END;
 GO
 
-/* Unique active assignments, cancelled rows do not block re-assignment */
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_StaffAssignments_Lane' AND object_id = OBJECT_ID('dbo.StaffAssignments'))
     CREATE UNIQUE INDEX UX_StaffAssignments_Lane
     ON dbo.StaffAssignments(WorkDate, ShiftID, LaneID)
@@ -469,8 +468,6 @@ BEGIN
 END;
 GO
 
-/* AccessLogs - đã xóa (không có entity/repository trong backend) */
-
 /* ================================================================
    6. REQUEST / EXCEPTION PROCESSING
    ================================================================ */
@@ -514,16 +511,6 @@ BEGIN
     );
 END;
 GO
-
-/* RequestNotes - đã xóa (không có entity/repository trong backend) */
-
-/* ================================================================
-   7. VIOLATIONS AND PENALTIES
-   ================================================================
-   Lưu ý: Các bảng Violations, Penalties, PenaltyHistories đã được XÓA.
-   Logic phạt vi phạm hiện được lưu trực tiếp trong ParkingTickets.PenaltyAmount
-   và ParkingTickets.ViolationReason (tính tự động khi checkout).
-   ================================================================ */
 
 /* ================================================================
    8. PAYMENTS AND CARD HISTORY
@@ -585,13 +572,6 @@ END;
 GO
 
 /* ================================================================
-   9. NOTIFICATIONS, AUDIT LOG, SETTINGS
-   ================================================================
-   Lưu ý: Các bảng Notifications, AuditLogs, SystemSettings đã được XÓA.
-   Không có entity/repository nào trong backend Java sử dụng các bảng này.
-   ================================================================ */
-
-/* ================================================================
    10. INDEXES
    ================================================================ */
 
@@ -613,18 +593,12 @@ GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingTickets_Plate' AND object_id = OBJECT_ID('dbo.ParkingTickets'))
     CREATE INDEX IX_ParkingTickets_Plate ON dbo.ParkingTickets(PlateNoSnapshot);
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AccessLogs_Time' AND object_id = OBJECT_ID('dbo.AccessLogs'))
-    CREATE INDEX IX_AccessLogs_Time ON dbo.AccessLogs(AccessTime DESC);
-GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Requests_Status_Type' AND object_id = OBJECT_ID('dbo.Requests'))
     CREATE INDEX IX_Requests_Status_Type ON dbo.Requests(Status, RequestType, CreatedAt DESC);
 GO
-/* Indexes cho Violations, Penalties, Notifications, AuditLogs đã bị xóa cùng với các bảng */
 
 /* ================================================================
    11. SAMPLE DATA
-   All sample accounts use password: 123456
-   BCrypt: $2y$10$Z1FmS4w9Dm4lKY.hgC7LDubzpz.KmgCvW3XOMS4CSuo9S71BU4/da
    ================================================================ */
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'ADMIN')
@@ -750,15 +724,19 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '29X1-123.45')
     INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
     SELECT CustomerID, '29X1-123.45', 'MOTORCYCLE', N'Honda', N'Đen' FROM dbo.Customers WHERE Email = 'user01@gmail.com';
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '51A-123.45')
     INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
     SELECT CustomerID, '51A-123.45', 'CAR', N'Toyota', N'Trắng' FROM dbo.Customers WHERE Email = 'user01@gmail.com';
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '43A-999.11')
     INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
     SELECT CustomerID, '43A-999.11', 'MOTORCYCLE', N'Yamaha', N'Xanh' FROM dbo.Customers WHERE Email = 'user02@gmail.com';
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '51F-888.88')
     INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
     SELECT CustomerID, '51F-888.88', 'CAR', N'Kia', N'Đen' FROM dbo.Customers WHERE Email = 'user02@gmail.com';
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '59A-123.45')
     INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
     SELECT CustomerID, '59A-123.45', 'MOTORCYCLE', N'Honda', N'Đỏ' FROM dbo.Customers WHERE Email = 'levancuong@gmail.com';
@@ -774,12 +752,10 @@ IF NOT EXISTS (SELECT 1 FROM dbo.Floors WHERE FloorCode = 'B2')
 ELSE
     UPDATE dbo.Floors SET VehicleType = 'BOTH', TotalSlots = 100, FloorName = N'Tầng B2' WHERE FloorCode = 'B2';
 
--- Delete B3 floor if it exists to strictly keep only 2 floors
 IF EXISTS (SELECT 1 FROM dbo.Floors WHERE FloorCode = 'B3')
 BEGIN
     DECLARE @B3_ID INT;
     SELECT @B3_ID = FloorID FROM dbo.Floors WHERE FloorCode = 'B3';
-    -- Delete referencing slots and zones
     DELETE FROM dbo.ParkingSlots WHERE FloorID = @B3_ID;
     DELETE FROM dbo.ParkingZones WHERE FloorID = @B3_ID;
     DELETE FROM dbo.Floors WHERE FloorID = @B3_ID;
@@ -801,10 +777,10 @@ BEGIN
 
     IF NOT EXISTS (SELECT 1 FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = 'A')
         INSERT dbo.ParkingZones(FloorID, ZoneCode, ZoneName) VALUES (@FloorID, 'A', N'Khu A');
+
     IF NOT EXISTS (SELECT 1 FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = 'B')
         INSERT dbo.ParkingZones(FloorID, ZoneCode, ZoneName) VALUES (@FloorID, 'B', N'Khu B');
 
-    -- Zone A: CAR slots (20 slots: A01 to A20)
     SET @ZoneCode = 'A';
     SELECT @ZoneID = ZoneID FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = @ZoneCode;
     SET @i = 1;
@@ -816,13 +792,12 @@ BEGIN
         SET @i += 1;
     END;
 
-    -- Zone B: MOTORCYCLE slots (60 for B1, 80 for B2)
     SET @ZoneCode = 'B';
     SELECT @ZoneID = ZoneID FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = @ZoneCode;
     SET @i = 1;
     DECLARE @MaxMotorcycles INT;
     SET @MaxMotorcycles = CASE WHEN @FloorCode = 'B1' THEN 60 ELSE 80 END;
-    
+
     WHILE @i <= @MaxMotorcycles
     BEGIN
         IF NOT EXISTS (SELECT 1 FROM dbo.ParkingSlots WHERE SlotCode = @FloorCode + '-B' + RIGHT('00' + CONVERT(VARCHAR(2), @i), 2))
@@ -837,25 +812,28 @@ CLOSE floor_cursor;
 DEALLOCATE floor_cursor;
 GO
 
-/* Demo slot statuses matching UI */
 UPDATE dbo.ParkingSlots SET Status = 'OCCUPIED', LastUpdatedAt = SYSDATETIME() WHERE SlotCode IN ('B1-A03', 'B1-B02', 'B2-B03');
-UPDATE dbo.ParkingSlots SET Status = 'MAINTENANCE', DisabledReason = N'Đang bảo trì', LastUpdatedAt = SYSDATETIME() WHERE SlotCode IN ('B1-A05', 'B2-B02');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L1')
     INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L1', N'Làn xe máy vào 1', 'ENTRY', 'MOTORCYCLE', N'Khu A - Xe máy');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L2')
     INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L2', N'Làn xe máy ra 1', 'EXIT', 'MOTORCYCLE', N'Khu A - Xe máy');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L3')
     INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L3', N'Làn ô tô vào 1', 'ENTRY', 'CAR', N'Khu B - Ô tô');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L4')
     INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L4', N'Làn ô tô ra 1', 'EXIT', 'CAR', N'Khu B - Ô tô');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.WorkShifts WHERE ShiftCode = 'CA1')
     INSERT dbo.WorkShifts(ShiftCode, ShiftName, StartTime, EndTime) VALUES ('CA1', N'Ca 1', '06:00', '14:00');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.WorkShifts WHERE ShiftCode = 'CA2')
     INSERT dbo.WorkShifts(ShiftCode, ShiftName, StartTime, EndTime) VALUES ('CA2', N'Ca 2', '14:00', '22:00');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.WorkShifts WHERE ShiftCode = 'CA3')
     INSERT dbo.WorkShifts(ShiftCode, ShiftName, StartTime, EndTime) VALUES ('CA3', N'Ca 3', '22:00', '06:00');
 GO
@@ -863,30 +841,31 @@ GO
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ LƯỢT XE MÁY')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, ReservationAllowed, Description)
     VALUES (N'THẺ LƯỢT XE MÁY', 'MOTORCYCLE', 'SINGLE', 5000, 0, N'Vé lượt dành cho xe máy');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ LƯỢT Ô TÔ')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, ReservationAllowed, Description)
     VALUES (N'THẺ LƯỢT Ô TÔ', 'CAR', 'SINGLE', 20000, 0, N'Vé lượt dành cho ô tô');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ NGÀY XE MÁY')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, DefaultDurationDays, ReservationAllowed, Description)
     VALUES (N'THẺ NGÀY XE MÁY', 'MOTORCYCLE', 'DAY', 10000, 1, 0, N'Vé ngày dành cho xe máy');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ NGÀY Ô TÔ')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, DefaultDurationDays, ReservationAllowed, Description)
     VALUES (N'THẺ NGÀY Ô TÔ', 'CAR', 'DAY', 50000, 1, 0, N'Vé ngày dành cho ô tô');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ THÁNG XE MÁY')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, DefaultDurationDays, ReservationAllowed, Description)
     VALUES (N'THẺ THÁNG XE MÁY', 'MOTORCYCLE', 'MONTHLY', 100000, 30, 0, N'Vé tháng dành cho xe máy');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.CardGroups WHERE GroupName = N'THẺ THÁNG Ô TÔ')
     INSERT dbo.CardGroups(GroupName, VehicleType, TicketType, BasePrice, DefaultDurationDays, ReservationAllowed, Description)
     VALUES (N'THẺ THÁNG Ô TÔ', 'CAR', 'MONTHLY', 1000000, 30, 1, N'Vé tháng ô tô được phép đặt slot');
 GO
 
-IF NOT EXISTS (
-    SELECT 1 FROM dbo.Cards c JOIN dbo.Vehicles v ON v.VehicleID = c.VehicleID WHERE v.PlateNo = '29X1-123.45' AND c.Status = 'ACTIVE'
-)
-    INSERT dbo.Cards(RFIDUID, CardGroupID, CustomerID, VehicleID, PreferredFloorID, RegisteredAt, EffectiveFrom, ExpireAt, Status, Note)
-    SELECT '0002100001', cg.CardGroupID, v.CustomerID, v.VehicleID, f.FloorID, '2024-01-05', '2024-01-05', '2026-12-31', 'ACTIVE', N'Thẻ tháng chính'
-    FROM dbo.CardGroups cg CROSS JOIN dbo.Vehicles v CROSS JOIN dbo.Floors f
-    WHERE cg.GroupName = N'THẺ THÁNG XE MÁY' AND v.PlateNo = '29X1-123.45' AND f.FloorCode = 'B1';
+/* DA LOAI BO DU LIEU MAU CUA CARD000001 (29X1-123.45) VA CARD000003 (43A-999.11).
+   Chi thuc hien chen phan con lai hop le tu du lieu goc cua ban.
+*/
 
 IF NOT EXISTS (
     SELECT 1 FROM dbo.Cards c JOIN dbo.Vehicles v ON v.VehicleID = c.VehicleID WHERE v.PlateNo = '51A-123.45' AND c.Status = 'ACTIVE'
@@ -897,14 +876,6 @@ IF NOT EXISTS (
     WHERE cg.GroupName = N'THẺ THÁNG Ô TÔ' AND v.PlateNo = '51A-123.45' AND f.FloorCode = 'B1';
 
 IF NOT EXISTS (
-    SELECT 1 FROM dbo.Cards c JOIN dbo.Vehicles v ON v.VehicleID = c.VehicleID WHERE v.PlateNo = '43A-999.11'
-)
-    INSERT dbo.Cards(RFIDUID, CardGroupID, CustomerID, VehicleID, PreferredFloorID, RegisteredAt, EffectiveFrom, ExpireAt, Status)
-    SELECT '0002100005', cg.CardGroupID, v.CustomerID, v.VehicleID, f.FloorID, '2023-12-01', '2023-12-01', '2024-01-10', 'EXPIRED'
-    FROM dbo.CardGroups cg CROSS JOIN dbo.Vehicles v CROSS JOIN dbo.Floors f
-    WHERE cg.GroupName = N'THẺ THÁNG XE MÁY' AND v.PlateNo = '43A-999.11' AND f.FloorCode = 'B2';
-
-IF NOT EXISTS (
     SELECT 1 FROM dbo.Cards c JOIN dbo.Vehicles v ON v.VehicleID = c.VehicleID WHERE v.PlateNo = '51F-888.88'
 )
     INSERT dbo.Cards(RFIDUID, CardGroupID, CustomerID, VehicleID, PreferredFloorID, RegisteredAt, EffectiveFrom, ExpireAt, Status)
@@ -912,8 +883,6 @@ IF NOT EXISTS (
     FROM dbo.CardGroups cg CROSS JOIN dbo.Vehicles v CROSS JOIN dbo.Floors f
     WHERE cg.GroupName = N'THẺ THÁNG Ô TÔ' AND v.PlateNo = '51F-888.88' AND f.FloorCode = 'B2';
 GO
-
-/* SystemSettings đã bị xóa - không sử dụng trong backend */
 
 /* ================================================================
    12. VIEWS FOR FRONTEND / REPORTING
@@ -1009,7 +978,7 @@ SELECT
     SUM(CASE WHEN ps.Status = 'AVAILABLE' THEN 1 ELSE 0 END) AS AvailableSlots,
     SUM(CASE WHEN ps.Status = 'RESERVED' THEN 1 ELSE 0 END) AS ReservedSlots,
     SUM(CASE WHEN ps.Status = 'OCCUPIED' THEN 1 ELSE 0 END) AS OccupiedSlots,
-    SUM(CASE WHEN ps.Status IN ('MAINTENANCE','DISABLED') THEN 1 ELSE 0 END) AS DisabledSlots
+    SUM(CASE WHEN ps.Status = 'DISABLED' THEN 1 ELSE 0 END) AS DisabledSlots
 FROM dbo.Floors f
 LEFT JOIN dbo.ParkingSlots ps ON ps.FloorID = f.FloorID
 GROUP BY f.FloorID, f.FloorCode, f.FloorName, f.VehicleType, f.TotalSlots;
@@ -1052,5 +1021,3 @@ PRINT N'ParkingManagementDB đã được tạo/cập nhật thành công.';
 PRINT N'Tài khoản mẫu: admin, staff01, staff02, user01, user02';
 PRINT N'Mật khẩu chung: 123456';
 GO
-
-
