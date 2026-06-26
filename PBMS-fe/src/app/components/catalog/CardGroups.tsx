@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { Plus, Edit, Trash2, X, Save, Tag } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Plus, Edit, Trash2, X, Save, Tag, RefreshCw } from "lucide-react";
 import { cls } from "../common/ui";
 import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
+import { adminCardService } from "../../../services/adminCardService";
 
 interface CardGroup {
   id: number;
@@ -14,13 +15,6 @@ interface CardGroup {
   moTa: string;
   trangThai: string;
 }
-
-const initialData: CardGroup[] = [
-  { id: 1, stt: 1, tenNhom: "THẺ LƯỢT XE MÁY", loaiPhuongTien: "Xe máy", loaiVe: "Vé lượt", giaTien: "5.000", moTa: "Vé lượt dành cho xe máy", trangThai: "Hoạt động" },
-  { id: 2, stt: 2, tenNhom: "THẺ LƯỢT Ô TÔ", loaiPhuongTien: "Ô tô", loaiVe: "Vé lượt", giaTien: "20.000", moTa: "Vé lượt dành cho ô tô", trangThai: "Hoạt động" },
-  { id: 3, stt: 3, tenNhom: "THẺ THÁNG XE MÁY", loaiPhuongTien: "Xe máy", loaiVe: "Vé tháng", giaTien: "100.000", moTa: "Vé tháng dành cho xe máy", trangThai: "Hoạt động" },
-  { id: 4, stt: 4, tenNhom: "THẺ THÁNG Ô TÔ", loaiPhuongTien: "Ô tô", loaiVe: "Vé tháng", giaTien: "1.000.000", moTa: "Vé tháng dành cho ô tô", trangThai: "Hoạt động" },
-];
 
 interface FormData {
   tenNhom: string;
@@ -41,12 +35,42 @@ const defaultForm: FormData = {
 };
 
 export default function CardGroups() {
-  const [data, setData] = useState(initialData);
+  const [data, setData] = useState<CardGroup[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<CardGroup | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+
+  const fetchGroups = async () => {
+    setLoading(true);
+    try {
+      const result = await adminCardService.getAllCardGroups();
+      const mapped = result.map((g, idx) => ({
+        id: g.cardGroupId,
+        stt: idx + 1,
+        tenNhom: g.groupName,
+        loaiPhuongTien: g.vehicleType === "MOTORCYCLE" ? "Xe máy" : g.vehicleType === "CAR" ? "Ô tô" : g.vehicleType,
+        loaiVe: g.ticketType === "SINGLE" ? "Vé lượt" : g.ticketType === "DAY" ? "Vé ngày" : g.ticketType === "MONTHLY" ? "Vé tháng" : g.ticketType,
+        giaTien: g.basePrice.toLocaleString("vi-VN"),
+        moTa: g.description || "",
+        trangThai: g.status === "ACTIVE" ? "Hoạt động" : "Ngừng hoạt động",
+      }));
+      setData(mapped);
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Không thể tải danh sách nhóm thẻ.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchGroups();
+  }, []);
 
   const openAdd = () => {
     setEditItem(null);
@@ -67,22 +91,52 @@ export default function CardGroups() {
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.tenNhom.trim() || !form.giaTien.trim()) return;
-    if (editItem) {
-      setData(prev =>
-        prev.map(d => d.id === editItem.id ? { ...d, ...form } : d)
-      );
-    } else {
-      const newId = Math.max(...data.map(d => d.id)) + 1;
-      setData(prev => [...prev, { id: newId, stt: newId, ...form }]);
+
+    const vehicleType = form.loaiPhuongTien === "Xe máy" ? "MOTORCYCLE" : "CAR";
+    const ticketType = form.loaiVe === "Vé lượt" ? "SINGLE" : form.loaiVe === "Vé ngày" ? "DAY" : "MONTHLY";
+    const basePrice = parseFloat(form.giaTien.replace(/[.,\s]/g, ""));
+    if (isNaN(basePrice)) {
+      alert("Giá tiền không hợp lệ.");
+      return;
     }
-    setShowModal(false);
+    const defaultDurationDays = ticketType === "SINGLE" ? 0 : ticketType === "DAY" ? 1 : 30;
+    const reservationAllowed = ticketType === "MONTHLY" && vehicleType === "CAR";
+    const status = form.trangThai === "Hoạt động" ? "ACTIVE" : "INACTIVE";
+
+    const payload = {
+      groupName: form.tenNhom.trim(),
+      vehicleType,
+      ticketType,
+      basePrice,
+      defaultDurationDays,
+      reservationAllowed,
+      description: form.moTa.trim(),
+      status,
+    };
+
+    try {
+      if (editItem) {
+        await adminCardService.updateCardGroup(editItem.id, payload);
+      } else {
+        await adminCardService.createCardGroup(payload);
+      }
+      setShowModal(false);
+      fetchGroups();
+    } catch (err: any) {
+      alert(err.message || "Lưu nhóm thẻ thất bại.");
+    }
   };
 
-  const handleDelete = (id: number) => {
-    setData(prev => prev.filter(d => d.id !== id).map((d, i) => ({ ...d, stt: i + 1 })));
-    setDeleteConfirm(null);
+  const handleDelete = async (id: number) => {
+    try {
+      await adminCardService.deleteCardGroup(id);
+      setDeleteConfirm(null);
+      fetchGroups();
+    } catch (err: any) {
+      alert(err.message || "Xóa nhóm thẻ thất bại.");
+    }
   };
 
   const columns: Column[] = [
@@ -137,6 +191,11 @@ export default function CardGroups() {
     },
   ];
 
+  // Pagination logic
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(data.length / itemsPerPage) || 1;
+  const paginatedData = data.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   return (
     <div className="space-y-2">
       {/* Toolbar */}
@@ -160,8 +219,25 @@ export default function CardGroups() {
           <span className="text-xs text-gray-500">Tổng: {data.length} nhóm</span>
         </div>
         <div className="p-2">
-          <DataTable columns={columns} data={data} />
-          <Pagination currentPage={page} totalPages={1} totalRecords={data.length} onPageChange={setPage} />
+          {loading ? (
+            <div className="text-center py-10 text-gray-500 flex items-center justify-center gap-2">
+              <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
+              Đang tải danh sách nhóm thẻ...
+            </div>
+          ) : error ? (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded p-4 text-center">
+              {error}
+            </div>
+          ) : data.length === 0 ? (
+            <div className="text-center py-10 text-gray-500 border border-dashed border-gray-300 rounded bg-white shadow-sm">
+              Chưa cấu hình nhóm thẻ nào.
+            </div>
+          ) : (
+            <>
+              <DataTable columns={columns} data={paginatedData} />
+              <Pagination currentPage={page} totalPages={totalPages} totalRecords={data.length} onPageChange={setPage} />
+            </>
+          )}
         </div>
       </div>
 
@@ -199,8 +275,6 @@ export default function CardGroups() {
                   >
                     <option>Xe máy</option>
                     <option>Ô tô</option>
-                    <option>Xe đạp</option>
-                    <option>Xe tải</option>
                   </select>
                 </div>
                 <div>
@@ -211,9 +285,8 @@ export default function CardGroups() {
                     onChange={e => setForm(p => ({ ...p, loaiVe: e.target.value }))}
                   >
                     <option>Vé lượt</option>
+                    <option>Vé ngày</option>
                     <option>Vé tháng</option>
-                    <option>Vé quý</option>
-                    <option>Vé năm</option>
                   </select>
                 </div>
               </div>

@@ -1,16 +1,18 @@
 import { useState } from "react";
-import { List, RefreshCw, Calendar, Settings2 } from "lucide-react";
+import { List, RefreshCw, Calendar, Settings2, AlertTriangle } from "lucide-react";
 import CardList from "./CardList";
 import CardRenew from "./CardRenew";
 import MonthlyCards from "../reports/MonthlyCards";
 import CardProcessing from "../reports/CardProcessing";
+import CardViolationRules from "./CardViolationRules";
 
-type Tab = "list" | "renew" | "monthly" | "processing";
+type Tab = "list" | "renew" | "monthly" | "processing" | "violations";
 
 const tabs: { key: Tab; label: string; icon: typeof List }[] = [
   { key: "list",       label: "Danh sách thẻ",       icon: List },
   { key: "renew",      label: "Gia hạn thẻ",          icon: RefreshCw },
   { key: "monthly",    label: "Thời hạn thẻ tháng",   icon: Calendar },
+  { key: "violations", label: "Quy tắc phạt",        icon: AlertTriangle },
   { key: "processing", label: "Xử lý thẻ",            icon: Settings2 },
 ];
 
@@ -45,6 +47,7 @@ export default function CardManagement() {
       {activeTab === "list"       && <CardList />}
       {activeTab === "renew"      && <CardRenew />}
       {activeTab === "monthly"    && <MonthlyCards />}
+      {activeTab === "violations" && <CardViolationRules />}
       {activeTab === "processing" && <CardProcessing />}
     </div>
   );

@@ -6,4 +6,5 @@ import com.parking.pbms.dto.ProfileUpdateRequest;
 public interface ProfileService {
     ProfileResponse getProfileByUsername(String username);
     ProfileResponse updateProfileByUsername(String username, ProfileUpdateRequest request);
+    void confirmPassword(String username, String password);
 }

@@ -4,7 +4,6 @@ import Layout, { Screen } from "./components/Layout";
 import { authService } from "../services/authService";
 import Dashboard from "./components/Dashboard";
 import VehicleEntryExit from "./components/reports/VehicleEntryExit";
-import AlertEvents from "./components/reports/AlertEvents";
 import CardProcessing from "./components/reports/CardProcessing";
 import CustomerManagement from "./components/customers/CustomerManagement";
 import CardGroups from "./components/catalog/CardGroups";
@@ -16,6 +15,7 @@ import UserApp from "./components/user/UserApp";
 
 import AdminFloorSlot from "./components/admin/AdminFloorSlot";
 import AdminExceptions from "./components/admin/AdminExceptions";
+import CardViolationRules from "./components/admin/CardViolationRules";
 
 /* MARKER-MAKE-KIT-INVOKED */
 
@@ -23,10 +23,10 @@ function renderScreen(screen: Screen, adminName: string) {
   switch (screen) {
     case "dashboard":            return <Dashboard adminName={adminName} />;
     case "vehicle-entry-exit":   return <VehicleEntryExit />;
-    case "alert-events":         return <AlertEvents />;
     case "card-history":         return <CardProcessing />;
     case "customer-management":  return <CustomerManagement />;
     case "card-groups":          return <CardGroups />;
+    case "card-violation-rules": return <CardViolationRules />;
     case "user-management":      return <UserManagement />;
     case "staff-assignment":     return <StaffAssignment />;
     case "admin-floor-slot":     return <AdminFloorSlot />;

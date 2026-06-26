@@ -44,6 +44,8 @@ public class AuthServiceImpl implements AuthService {
         String accessToken =
                 jwtService.generateToken(account);
 
+        String roleName = account.getRoleName();
+
         return new LoginResponse(
                 accessToken,
                 "Bearer",
@@ -51,7 +53,7 @@ public class AuthServiceImpl implements AuthService {
                 account.getAccountId(),
                 account.getUsername(),
                 account.getFullName(),
-                account.getRole().toLowerCase(Locale.ROOT)
+                roleName != null ? roleName.toLowerCase(Locale.ROOT) : ""
         );
     }
 }

@@ -31,7 +31,7 @@ public class JwtService {
                 .claim("accountId", account.getAccountId())
                 .claim(
                         "role",
-                        account.getRole().toUpperCase(Locale.ROOT)
+                        account.getRoleName() != null ? account.getRoleName().toUpperCase(Locale.ROOT) : null
                 )
                 .issuedAt(now)
                 .expiration(expiration)

@@ -38,4 +38,7 @@ public class User {
 
     @Column(name = "accountId", nullable = false, unique = true)
     private Integer accountId;
+
+    @Column(name = "CustomerID", nullable = false, unique = true)
+    private Integer customerId;
 }

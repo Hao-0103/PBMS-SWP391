@@ -19,7 +19,7 @@ export interface ApiResponse<T> {
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
 
 export const authService = {
-  async login(username: string, password: string): Promise<{ role: UserRole; name: string }> {
+  async login(username: string, password: string, remember = false): Promise<{ role: UserRole; name: string }> {
     const response = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: {
@@ -35,12 +35,22 @@ export const authService = {
     }
 
     const { data } = result;
-    
-    // Store in localStorage
-    localStorage.setItem("authToken", data.accessToken);
-    localStorage.setItem("userRole", data.role.toLowerCase());
-    localStorage.setItem("userName", data.fullName);
-    localStorage.setItem("username", data.username);
+    const storage = remember ? localStorage : sessionStorage;
+
+    // Ensure we do not keep a stale token/username in the other storage.
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("username");
+    sessionStorage.removeItem("authToken");
+    sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userName");
+    sessionStorage.removeItem("username");
+
+    storage.setItem("authToken", data.accessToken);
+    storage.setItem("userRole", data.role.toLowerCase());
+    storage.setItem("userName", data.fullName);
+    storage.setItem("username", data.username);
 
     return {
       role: data.role.toLowerCase() as UserRole,
@@ -53,12 +63,17 @@ export const authService = {
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
     localStorage.removeItem("username");
+
+    sessionStorage.removeItem("authToken");
+    sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userName");
+    sessionStorage.removeItem("username");
   },
 
   getCurrentUser(): { role: UserRole; name: string } | null {
-    const token = localStorage.getItem("authToken");
-    const role = localStorage.getItem("userRole");
-    const name = localStorage.getItem("userName");
+    const token = this.getStoredValue("authToken");
+    const role = this.getStoredValue("userRole");
+    const name = this.getStoredValue("userName");
 
     if (token && role && name) {
       return {
@@ -70,7 +85,15 @@ export const authService = {
   },
 
   getToken(): string | null {
-    return localStorage.getItem("authToken");
+    return this.getStoredValue("authToken");
+  },
+
+  getUsername(): string | null {
+    return this.getStoredValue("username");
+  },
+
+  getStoredValue(key: string): string | null {
+    return sessionStorage.getItem(key) ?? localStorage.getItem(key);
   },
 
   async getProfile(): Promise<UserProfile> {
@@ -112,6 +135,23 @@ export const authService = {
       throw new Error(result.message || "Không thể cập nhật hồ sơ.");
     }
     return result.data;
+  },
+
+  async confirmPassword(password: string): Promise<void> {
+    const token = this.getToken();
+    const response = await fetch(`${API_URL}/profile/confirm-password`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ password })
+    });
+
+    const result: ApiResponse<null> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Mat khau hien tai khong chinh xac.");
+    }
   }
 };
 
@@ -125,5 +165,6 @@ export interface UserProfile {
   phone: string;
   address?: string;
   shift?: string;
+  staffCode?: string;
   createdAt: string;
 }

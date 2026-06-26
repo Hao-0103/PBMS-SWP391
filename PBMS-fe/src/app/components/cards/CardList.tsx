@@ -4,15 +4,16 @@ import { cls } from "../common/ui";
 import { DateInput, FilterGroup } from "../common/DateInput";
 import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
+import CardViolationRules from "./CardViolationRules";
 
 const initialData = [
-  { id: 1, cardNo: "0001234567", maThe: "T001", nhomThe: "THẺ LƯỢT XE MÁY", bienSo: "59A-123.45", ngayHetHan: "", khachHang: "", diaChi: "", ngayDangKy: "2024-01-10", trangThai: "Hoạt động" },
-  { id: 2, cardNo: "0001234568", maThe: "T002", nhomThe: "THẺ LƯỢT Ô TÔ", bienSo: "51F-888.88", ngayHetHan: "", khachHang: "Nguyễn Văn A", diaChi: "123 Lê Lợi, Q1, HCM", ngayDangKy: "2024-01-10", trangThai: "Hoạt động" },
-  { id: 3, cardNo: "0002100001", maThe: "TM001", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "29X3-144.84", ngayHetHan: "2024-12-31", khachHang: "Trần Thị B", diaChi: "456 Nguyễn Huệ, Q1, HCM", ngayDangKy: "2024-01-05", trangThai: "Hoạt động" },
-  { id: 4, cardNo: "0002100002", maThe: "TM002", nhomThe: "THẺ THÁNG Ô TÔ", bienSo: "30G-456.78", ngayHetHan: "2024-02-28", khachHang: "Lê Văn C", diaChi: "789 Trần Hưng Đạo, Q5, HCM", ngayDangKy: "2024-01-08", trangThai: "Hoạt động" },
-  { id: 5, cardNo: "0002100005", maThe: "TM005", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "43A-999.11", ngayHetHan: "2024-01-10", khachHang: "Hoàng Văn E", diaChi: "12 Điện Biên Phủ, Q3, HCM", ngayDangKy: "2023-12-01", trangThai: "Khóa" },
-  { id: 6, cardNo: "0001234572", maThe: "T006", nhomThe: "THẺ LƯỢT XE MÁY", bienSo: "61C-333.55", ngayHetHan: "", khachHang: "", diaChi: "", ngayDangKy: "2024-01-12", trangThai: "Hoạt động" },
-  { id: 7, cardNo: "0001234573", maThe: "T007", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "50A-777.22", ngayHetHan: "2025-03-31", khachHang: "Vũ Thị F", diaChi: "88 Cách Mạng Tháng 8, Q10, HCM", ngayDangKy: "2024-01-15", trangThai: "Hoạt động" },
+  { id: 1, cardNo: "0001234567", maThe: "T001", nhomThe: "THẺ LƯỢT XE MÁY", bienSo: "59A-123.45", tangGuiXe: "Tầng 1", ngayHetHan: "", khachHang: "", diaChi: "", ngayDangKy: "2024-01-10", trangThai: "Hoạt động" },
+  { id: 2, cardNo: "0001234568", maThe: "T002", nhomThe: "THẺ LƯỢT Ô TÔ", bienSo: "51F-888.88", tangGuiXe: "Tầng 2", ngayHetHan: "", khachHang: "Nguyễn Văn A", diaChi: "123 Lê Lợi, Q1, HCM", ngayDangKy: "2024-01-10", trangThai: "Hoạt động" },
+  { id: 3, cardNo: "0002100001", maThe: "TM001", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "29X3-144.84", tangGuiXe: "Tầng 1", ngayHetHan: "2024-12-31", khachHang: "Trần Thị B", diaChi: "456 Nguyễn Huệ, Q1, HCM", ngayDangKy: "2024-01-05", trangThai: "Hoạt động" },
+  { id: 4, cardNo: "0002100002", maThe: "TM002", nhomThe: "THẺ THÁNG Ô TÔ", bienSo: "30G-456.78", tangGuiXe: "Tầng 3", ngayHetHan: "2024-02-28", khachHang: "Lê Văn C", diaChi: "789 Trần Hưng Đạo, Q5, HCM", ngayDangKy: "2024-01-08", trangThai: "Hoạt động" },
+  { id: 5, cardNo: "0002100005", maThe: "TM005", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "43A-999.11", tangGuiXe: "Tầng 2", ngayHetHan: "2024-01-10", khachHang: "Hoàng Văn E", diaChi: "12 Điện Biên Phủ, Q3, HCM", ngayDangKy: "2023-12-01", trangThai: "Khóa" },
+  { id: 6, cardNo: "0001234572", maThe: "T006", nhomThe: "THẺ LƯỢT XE MÁY", bienSo: "61C-333.55", tangGuiXe: "Tầng 1", ngayHetHan: "", khachHang: "", diaChi: "", ngayDangKy: "2024-01-12", trangThai: "Hoạt động" },
+  { id: 7, cardNo: "0001234573", maThe: "T007", nhomThe: "THẺ THÁNG XE MÁY", bienSo: "50A-777.22", tangGuiXe: "Tầng 3", ngayHetHan: "2025-03-31", khachHang: "Vũ Thị F", diaChi: "88 Cách Mạng Tháng 8, Q10, HCM", ngayDangKy: "2024-01-15", trangThai: "Hoạt động" },
 ];
 
 interface CardFormData {
@@ -25,6 +26,7 @@ interface CardFormData {
   ngayHetHan: string;
   trangThai: string;
   ghiChu: string;
+  tangGuiXe: string;
 }
 
 const defaultForm: CardFormData = {
@@ -37,6 +39,7 @@ const defaultForm: CardFormData = {
   ngayHetHan: "",
   trangThai: "Hoạt động",
   ghiChu: "",
+  tangGuiXe: "",
 };
 
 export default function CardList() {
@@ -73,6 +76,7 @@ export default function CardList() {
     { key: "maThe", label: "Mã thẻ" },
     { key: "nhomThe", label: "Nhóm thẻ" },
     { key: "bienSo", label: "Biển số" },
+    { key: "tangGuiXe", label: "Tầng" },
     {
       key: "ngayHetHan", label: "Ngày hết hạn",
       render: (v: string) => v || <span className="text-gray-400">---</span>,
@@ -142,6 +146,9 @@ export default function CardList() {
         </div>
       </div>
 
+      {/* Card Violation Rules */}
+      <CardViolationRules />
+
       {/* Add Card Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -175,6 +182,16 @@ export default function CardList() {
                 <div>
                   <label className="block text-xs text-gray-600 mb-1">Biển số</label>
                   <input className={`${cls.input} w-full`} placeholder="59A-123.45" value={form.bienSo} onChange={e => setForm(p => ({ ...p, bienSo: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">Tầng gửi xe <span className="text-red-500">*</span></label>
+                  <select className={`${cls.select} w-full`} value={form.tangGuiXe} onChange={e => setForm(p => ({ ...p, tangGuiXe: e.target.value }))}>
+                    <option value="">-- Chọn tầng --</option>
+                    <option>Tầng 1</option>
+                    <option>Tầng 2</option>
+                    <option>Tầng 3</option>
+                    <option>Tầng 4</option>
+                  </select>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs text-gray-600 mb-1">Khách hàng</label>

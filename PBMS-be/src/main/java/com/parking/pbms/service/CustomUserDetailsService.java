@@ -30,11 +30,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                 );
 
         boolean active = "ACTIVE".equalsIgnoreCase(account.getStatus());
+        String roleName = account.getRoleName();
 
         return User.withUsername(account.getUsername())
                 .password(account.getPasswordHash())
                 .authorities(
-                        "ROLE_" + account.getRole().toUpperCase(Locale.ROOT)
+                        "ROLE_" + (roleName != null ? roleName.toUpperCase(Locale.ROOT) : "USER")
                 )
                 .disabled(!active)
                 .build();

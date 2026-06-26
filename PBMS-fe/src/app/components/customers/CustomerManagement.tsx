@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   RotateCcw,
@@ -16,6 +15,13 @@ import { cls } from "../common/ui";
 import { FilterGroup } from "../common/DateInput";
 import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
+import {
+  adminCardService,
+  CustomerDto,
+  CustomerCardDto,
+  CreateCustomerPayload,
+  UpdateCustomerPayload,
+} from "../../../services/adminCardService";
 
 interface Customer {
   id: number;
@@ -50,241 +56,6 @@ interface FormData {
   ghiChu: string;
 }
 
-const customerCards: Record<number, CardDetail[]> = {
-  1: [
-    {
-      id: 1,
-      nhomThe: "THẺ LƯỢT XE MÁY",
-      maThe: "T001",
-      cardNo: "0001234567",
-      bienSo: "59A-123.45",
-      khachHang: "Nguyễn Văn An",
-      ngayDangKy: "2024-01-10",
-      ngayHetHan: "",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-    {
-      id: 2,
-      nhomThe: "THẺ THÁNG XE MÁY",
-      maThe: "TM001",
-      cardNo: "0002100001",
-      bienSo: "59A-123.45",
-      khachHang: "Nguyễn Văn An",
-      ngayDangKy: "2024-01-05",
-      ngayHetHan: "2024-12-31",
-      trangThai: "Hoạt động",
-      ghiChu: "Thẻ tháng chính",
-    },
-  ],
-
-  2: [
-    {
-      id: 3,
-      nhomThe: "THẺ THÁNG Ô TÔ",
-      maThe: "TM002",
-      cardNo: "0002100002",
-      bienSo: "51F-888.88",
-      khachHang: "Trần Thị Bích",
-      ngayDangKy: "2024-01-08",
-      ngayHetHan: "2024-01-18",
-      trangThai: "Hết hạn",
-      ghiChu: "",
-    },
-  ],
-
-  3: [
-    {
-      id: 4,
-      nhomThe: "THẺ LƯỢT Ô TÔ",
-      maThe: "T002",
-      cardNo: "0001234568",
-      bienSo: "29X3-144.84",
-      khachHang: "Lê Văn Cường",
-      ngayDangKy: "2024-01-10",
-      ngayHetHan: "",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-    {
-      id: 5,
-      nhomThe: "THẺ THÁNG XE MÁY",
-      maThe: "TM003",
-      cardNo: "0002100003",
-      bienSo: "29X3-144.84",
-      khachHang: "Lê Văn Cường",
-      ngayDangKy: "2024-01-10",
-      ngayHetHan: "2024-01-25",
-      trangThai: "Sắp hết hạn",
-      ghiChu: "",
-    },
-    {
-      id: 6,
-      nhomThe: "THẺ LƯỢT XE MÁY",
-      maThe: "T008",
-      cardNo: "0001234580",
-      bienSo: "29X3-100.00",
-      khachHang: "Lê Văn Cường",
-      ngayDangKy: "2024-01-12",
-      ngayHetHan: "",
-      trangThai: "Hoạt động",
-      ghiChu: "Thẻ phụ",
-    },
-  ],
-
-  4: [
-    {
-      id: 7,
-      nhomThe: "THẺ THÁNG Ô TÔ",
-      maThe: "TM004",
-      cardNo: "0002100004",
-      bienSo: "30G-456.78",
-      khachHang: "Phạm Thị Duyên",
-      ngayDangKy: "2024-01-08",
-      ngayHetHan: "2024-02-28",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-  ],
-
-  5: [
-    {
-      id: 8,
-      nhomThe: "THẺ THÁNG XE MÁY",
-      maThe: "TM005",
-      cardNo: "0002100005",
-      bienSo: "43A-999.11",
-      khachHang: "Hoàng Văn Em",
-      ngayDangKy: "2023-12-01",
-      ngayHetHan: "2024-01-10",
-      trangThai: "Hết hạn",
-      ghiChu: "Cần gia hạn",
-    },
-  ],
-
-  6: [
-    {
-      id: 9,
-      nhomThe: "THẺ LƯỢT XE MÁY",
-      maThe: "T006",
-      cardNo: "0001234572",
-      bienSo: "61C-333.55",
-      khachHang: "Vũ Thị Phương",
-      ngayDangKy: "2024-01-12",
-      ngayHetHan: "",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-    {
-      id: 10,
-      nhomThe: "THẺ THÁNG XE MÁY",
-      maThe: "TM006",
-      cardNo: "0002100006",
-      bienSo: "61C-333.55",
-      khachHang: "Vũ Thị Phương",
-      ngayDangKy: "2024-01-15",
-      ngayHetHan: "2025-03-31",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-  ],
-
-  7: [
-    {
-      id: 11,
-      nhomThe: "THẺ LƯỢT XE MÁY",
-      maThe: "T007",
-      cardNo: "0001234573",
-      bienSo: "50A-777.22",
-      khachHang: "Đặng Quốc Giang",
-      ngayDangKy: "2024-01-15",
-      ngayHetHan: "",
-      trangThai: "Hoạt động",
-      ghiChu: "",
-    },
-  ],
-};
-
-const initialData: Customer[] = [
-  {
-    id: 1,
-    stt: 1,
-    maKH: "KH001",
-    hoTen: "Nguyễn Văn An",
-    sdt: "0912345678",
-    email: "nvan.an@gmail.com",
-    diaChi: "123 Lê Lợi, Q.1, TP.HCM",
-    soThe: 2,
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 2,
-    stt: 2,
-    maKH: "KH002",
-    hoTen: "Trần Thị Bích",
-    sdt: "0987654321",
-    email: "ttbich@gmail.com",
-    diaChi: "456 Nguyễn Huệ, Q.1, TP.HCM",
-    soThe: 1,
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 3,
-    stt: 3,
-    maKH: "KH003",
-    hoTen: "Lê Văn Cường",
-    sdt: "0901112233",
-    email: "lvcuong@gmail.com",
-    diaChi: "789 Trần Hưng Đạo, Q.5, TP.HCM",
-    soThe: 3,
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 4,
-    stt: 4,
-    maKH: "KH004",
-    hoTen: "Phạm Thị Duyên",
-    sdt: "0934445566",
-    email: "ptduyen@gmail.com",
-    diaChi: "12 Điện Biên Phủ, Q.3, TP.HCM",
-    soThe: 1,
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 5,
-    stt: 5,
-    maKH: "KH005",
-    hoTen: "Hoàng Văn Em",
-    sdt: "0956677889",
-    email: "hvem@gmail.com",
-    diaChi: "88 CMT8, Q.10, TP.HCM",
-    soThe: 1,
-    trangThai: "Khóa",
-  },
-  {
-    id: 6,
-    stt: 6,
-    maKH: "KH006",
-    hoTen: "Vũ Thị Phương",
-    sdt: "0978889900",
-    email: "vtphuong@gmail.com",
-    diaChi: "34 Hai Bà Trưng, Q.1, TP.HCM",
-    soThe: 2,
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 7,
-    stt: 7,
-    maKH: "KH007",
-    hoTen: "Đặng Quốc Giang",
-    sdt: "0990011223",
-    email: "dqgiang@gmail.com",
-    diaChi: "67 Lý Thường Kiệt, Q.10, TP.HCM",
-    soThe: 1,
-    trangThai: "Hoạt động",
-  },
-];
-
 const defaultForm: FormData = {
   hoTen: "",
   sdt: "",
@@ -293,43 +64,81 @@ const defaultForm: FormData = {
   ghiChu: "",
 };
 
-const getMonthlyCards = (customerId: number): CardDetail[] => {
-  return (customerCards[customerId] ?? []).filter((card) =>
-    card.nhomThe.toUpperCase().includes("THÁNG")
-  );
+const mapDtoToCustomer = (dto: CustomerDto, index: number): Customer => {
+  return {
+    id: dto.customerId,
+    stt: index + 1,
+    maKH: dto.customerCode,
+    hoTen: dto.fullName,
+    sdt: dto.phone,
+    email: dto.email || "",
+    diaChi: dto.address || "",
+    soThe: dto.monthlyCardCount || 0,
+    trangThai: dto.status === "ACTIVE" ? "Hoạt động" : "Khóa",
+  };
 };
 
-function CardDetailForm({
-  card,
+function CustomerCardsModal({
+  customer,
   onClose,
 }: {
-  card: CardDetail;
+  customer: Customer;
   onClose: () => void;
 }) {
-  const [form, setForm] = useState<CardDetail>({ ...card });
+  const [cards, setCards] = useState<CardDetail[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleChange =
-    (
-      key: keyof CardDetail
-    ) =>
-    (
-      event: React.ChangeEvent<
-        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
-      >
-    ) => {
-      setForm((previous) => ({
-        ...previous,
-        [key]: event.target.value,
-      }));
+  useEffect(() => {
+    const fetchCards = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const data = await adminCardService.getCustomerCards(customer.id);
+        setCards(
+          data.map((item) => ({
+            id: item.cardId,
+            nhomThe: item.groupName,
+            maThe: item.cardNo,
+            cardNo: item.rfidUid || "",
+            bienSo: item.plateNo || "",
+            khachHang: customer.hoTen,
+            ngayDangKy: item.registeredAt || "",
+            ngayHetHan: item.expireAt || "",
+            trangThai:
+              item.status === "ACTIVE"
+                ? "Hoạt động"
+                : item.status === "EXPIRED"
+                  ? "Hết hạn"
+                  : item.status === "EXPIRING"
+                    ? "Sắp hết hạn"
+                    : "Khóa",
+            ghiChu: item.note || "",
+          }))
+        );
+      } catch (err: any) {
+        setError(err.message || "Không thể tải danh sách thẻ.");
+      } finally {
+        setLoading(false);
+      }
     };
 
+    fetchCards();
+  }, [customer.id, customer.hoTen]);
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40">
-      <div className="w-[540px] rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
-          <span className="text-sm font-semibold text-white">
-            Chi tiết thẻ tháng
-          </span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="flex max-h-[85vh] w-[680px] flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex flex-shrink-0 items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-white" />
+            <span className="text-sm font-semibold text-white">
+              Thẻ của khách hàng: {customer.hoTen}
+            </span>
+            <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs text-white">
+              {cards.length} thẻ
+            </span>
+          </div>
 
           <button
             type="button"
@@ -340,159 +149,123 @@ function CardDetailForm({
           </button>
         </div>
 
-        <div className="space-y-3 p-5">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Nhóm thẻ <span className="text-red-500">*</span>
-              </label>
+        <div className="flex flex-shrink-0 gap-6 border-b border-blue-200 bg-blue-50 px-5 py-2 text-xs text-gray-600">
+          <span>
+            <span className="text-gray-400">Mã KH:</span>{" "}
+            <span className="font-medium text-gray-800">
+              {customer.maKH}
+            </span>
+          </span>
 
-              <select
-                className={`${cls.select} w-full`}
-                value={form.nhomThe}
-                onChange={handleChange("nhomThe")}
-              >
-                <option value="THẺ THÁNG XE MÁY">
-                  THẺ THÁNG XE MÁY
-                </option>
-                <option value="THẺ THÁNG Ô TÔ">
-                  THẺ THÁNG Ô TÔ
-                </option>
-              </select>
-            </div>
+          <span>
+            <span className="text-gray-400">SĐT:</span>{" "}
+            <span className="font-medium text-gray-800">
+              {customer.sdt}
+            </span>
+          </span>
 
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Mã thẻ <span className="text-red-500">*</span>
-              </label>
-
-              <input
-                className={`${cls.input} w-full`}
-                placeholder="TM001"
-                value={form.maThe}
-                onChange={handleChange("maThe")}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                CardNo <span className="text-red-500">*</span>
-              </label>
-
-              <input
-                className={`${cls.input} w-full`}
-                placeholder="0002100001"
-                value={form.cardNo}
-                onChange={handleChange("cardNo")}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Biển số
-              </label>
-
-              <input
-                className={`${cls.input} w-full`}
-                placeholder="59A-123.45"
-                value={form.bienSo}
-                onChange={handleChange("bienSo")}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="mb-1 block text-xs text-gray-600">
-              Khách hàng
-            </label>
-
-            <input
-              className={`${cls.input} w-full`}
-              placeholder="Nhập tên khách hàng"
-              value={form.khachHang}
-              onChange={handleChange("khachHang")}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Ngày đăng ký
-              </label>
-
-              <input
-                type="date"
-                className={`${cls.input} w-full`}
-                value={form.ngayDangKy}
-                onChange={handleChange("ngayDangKy")}
-              />
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Ngày hết hạn
-              </label>
-
-              <input
-                type="date"
-                className={`${cls.input} w-full`}
-                value={form.ngayHetHan}
-                onChange={handleChange("ngayHetHan")}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Trạng thái
-              </label>
-
-              <select
-                className={`${cls.select} w-full`}
-                value={form.trangThai}
-                onChange={handleChange("trangThai")}
-              >
-                <option value="Hoạt động">Hoạt động</option>
-                <option value="Khóa">Khóa</option>
-                <option value="Hết hạn">Hết hạn</option>
-                <option value="Sắp hết hạn">Sắp hết hạn</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs text-gray-600">
-                Ghi chú
-              </label>
-
-              <input
-                className={`${cls.input} w-full`}
-                placeholder="Ghi chú..."
-                value={form.ghiChu}
-                onChange={handleChange("ghiChu")}
-              />
-            </div>
-          </div>
+          <span>
+            <span className="text-gray-400">Địa chỉ:</span>{" "}
+            <span className="font-medium text-gray-800">
+              {customer.diaChi}
+            </span>
+          </span>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
-          <button
-            type="button"
-            className={cls.btnSearch}
-            onClick={onClose}
-          >
-            <Save className="h-3.5 w-3.5" />
-            Lưu
-          </button>
+        <div className="flex-1 overflow-y-auto p-3">
+          {loading ? (
+            <div className="flex items-center justify-center py-12 text-sm text-gray-500">
+              Đang tải danh sách thẻ...
+            </div>
+          ) : error ? (
+            <div className="rounded border border-red-200 bg-red-50 p-3 text-center text-xs text-red-600">
+              {error}
+            </div>
+          ) : cards.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <CreditCard className="mb-2 h-10 w-10 opacity-30" />
+              <p className="text-sm">
+                Khách hàng chưa có thẻ liên kết
+              </p>
+            </div>
+          ) : (
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-y border-gray-300 bg-gray-100">
+                  <th className={cls.th}>Mã thẻ</th>
+                  <th className={cls.th}>CardNo (RFID)</th>
+                  <th className={cls.th}>Nhóm thẻ</th>
+                  <th className={cls.th}>Biển số</th>
+                  <th className={cls.th}>Ngày HH</th>
+                  <th className={cls.th}>Trạng thái</th>
+                </tr>
+              </thead>
 
+              <tbody>
+                {cards.map((card, index) => (
+                  <tr
+                    key={card.id}
+                    className={`border-b border-gray-200 transition-colors hover:bg-blue-50 ${
+                      index % 2 === 1 ? "bg-gray-50" : "bg-white"
+                    }`}
+                  >
+                    <td className={cls.td}>
+                      <span className="font-medium text-blue-700">
+                        {card.maThe}
+                      </span>
+                    </td>
+                    <td className={cls.td}>{card.cardNo}</td>
+                    <td className={cls.td}>
+                      <span className={cls.badge.green}>
+                        {card.nhomThe}
+                      </span>
+                    </td>
+                    <td className={cls.td}>{card.bienSo}</td>
+                    <td className={cls.td}>
+                      {card.ngayHetHan ? (
+                        <span
+                          className={
+                            card.trangThai === "Hết hạn"
+                              ? "text-xs font-medium text-red-600"
+                              : card.trangThai === "Sắp hết hạn"
+                                ? "text-xs font-medium text-amber-600"
+                                : "text-xs text-gray-700"
+                          }
+                        >
+                          {card.ngayHetHan}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">---</span>
+                      )}
+                    </td>
+                    <td className={cls.td}>
+                      <span
+                        className={
+                          card.trangThai === "Hoạt động"
+                            ? cls.badge.green
+                            : card.trangThai === "Hết hạn"
+                              ? cls.badge.red
+                              : card.trangThai === "Sắp hết hạn"
+                                ? cls.badge.amber
+                                : cls.badge.gray
+                        }
+                      >
+                        {card.trangThai}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        <div className="flex flex-shrink-0 justify-end border-t border-gray-200 px-5 py-3">
           <button
             type="button"
-            className={cls.btnReset}
+            className={cls.btnSecondary}
             onClick={onClose}
           >
-            <X className="h-3.5 w-3.5" />
             Đóng
           </button>
         </div>
@@ -501,218 +274,38 @@ function CardDetailForm({
   );
 }
 
-function CustomerCardsModal({
-  customer,
-  onClose,
-}: {
-  customer: Customer;
-  onClose: () => void;
-}) {
-  const cards = getMonthlyCards(customer.id);
-
-  const [selectedCard, setSelectedCard] =
-    useState<CardDetail | null>(null);
-
-  return (
-    <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="flex max-h-[85vh] w-[680px] flex-col rounded-lg bg-white shadow-xl">
-          <div className="flex flex-shrink-0 items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
-            <div className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4 text-white" />
-
-              <span className="text-sm font-semibold text-white">
-                Thẻ tháng của khách hàng: {customer.hoTen}
-              </span>
-
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs text-white">
-                {cards.length} thẻ
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="text-white/80 hover:text-white"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-
-          <div className="flex flex-shrink-0 gap-6 border-b border-blue-200 bg-blue-50 px-5 py-2 text-xs text-gray-600">
-            <span>
-              <span className="text-gray-400">Mã KH:</span>{" "}
-              <span className="font-medium text-gray-800">
-                {customer.maKH}
-              </span>
-            </span>
-
-            <span>
-              <span className="text-gray-400">SĐT:</span>{" "}
-              <span className="font-medium text-gray-800">
-                {customer.sdt}
-              </span>
-            </span>
-
-            <span>
-              <span className="text-gray-400">Địa chỉ:</span>{" "}
-              <span className="font-medium text-gray-800">
-                {customer.diaChi}
-              </span>
-            </span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-3">
-            {cards.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
-                <CreditCard className="mb-2 h-10 w-10 opacity-30" />
-
-                <p className="text-sm">
-                  Khách hàng chưa có thẻ tháng
-                </p>
-              </div>
-            ) : (
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-y border-gray-300 bg-gray-100">
-                    <th className={cls.th}>Mã thẻ</th>
-                    <th className={cls.th}>CardNo</th>
-                    <th className={cls.th}>Nhóm thẻ</th>
-                    <th className={cls.th}>Biển số</th>
-                    <th className={cls.th}>Ngày HH</th>
-                    <th className={cls.th}>Trạng thái</th>
-                    <th className={`${cls.th} text-center`}>
-                      Chi tiết
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {cards.map((card, index) => (
-                    <tr
-                      key={card.id}
-                      className={`border-b border-gray-200 transition-colors hover:bg-blue-50 ${
-                        index % 2 === 1
-                          ? "bg-gray-50"
-                          : "bg-white"
-                      }`}
-                    >
-                      <td className={cls.td}>
-                        <span className="font-medium text-blue-700">
-                          {card.maThe}
-                        </span>
-                      </td>
-
-                      <td className={cls.td}>
-                        {card.cardNo}
-                      </td>
-
-                      <td className={cls.td}>
-                        <span className={cls.badge.green}>
-                          {card.nhomThe}
-                        </span>
-                      </td>
-
-                      <td className={cls.td}>
-                        {card.bienSo}
-                      </td>
-
-                      <td className={cls.td}>
-                        {card.ngayHetHan ? (
-                          <span
-                            className={
-                              card.trangThai === "Hết hạn"
-                                ? "text-xs font-medium text-red-600"
-                                : card.trangThai === "Sắp hết hạn"
-                                  ? "text-xs font-medium text-amber-600"
-                                  : "text-xs text-gray-700"
-                            }
-                          >
-                            {card.ngayHetHan}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            ---
-                          </span>
-                        )}
-                      </td>
-
-                      <td className={cls.td}>
-                        <span
-                          className={
-                            card.trangThai === "Hoạt động"
-                              ? cls.badge.green
-                              : card.trangThai === "Hết hạn"
-                                ? cls.badge.red
-                                : card.trangThai === "Sắp hết hạn"
-                                  ? cls.badge.amber
-                                  : cls.badge.gray
-                          }
-                        >
-                          {card.trangThai}
-                        </span>
-                      </td>
-
-                      <td className={`${cls.td} text-center`}>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedCard(card)}
-                          className="rounded p-0.5 text-blue-500 hover:bg-blue-50 hover:text-blue-700"
-                          title="Xem chi tiết thẻ tháng"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          <div className="flex flex-shrink-0 justify-end border-t border-gray-200 px-5 py-3">
-            <button
-              type="button"
-              className={cls.btnSecondary}
-              onClick={onClose}
-            >
-              Đóng
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {selectedCard && (
-        <CardDetailForm
-          card={selectedCard}
-          onClose={() => setSelectedCard(null)}
-        />
-      )}
-    </>
-  );
-}
-
 export default function CustomerManagement() {
-  const [data, setData] = useState<Customer[]>(initialData);
+  const [data, setData] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [keyword, setKeyword] = useState("");
   const [trangThai, setTrangThai] = useState("");
   const [page, setPage] = useState(1);
 
   const [showModal, setShowModal] = useState(false);
-  const [editItem, setEditItem] =
-    useState<Customer | null>(null);
+  const [editItem, setEditItem] = useState<Customer | null>(null);
+  const [form, setForm] = useState<FormData>(defaultForm);
+  const [formError, setFormError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [viewItem, setViewItem] = useState<Customer | null>(null);
+  const [cardsCustomer, setCardsCustomer] = useState<Customer | null>(null);
 
-  const [form, setForm] =
-    useState<FormData>(defaultForm);
+  const fetchCustomers = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const list = await adminCardService.getCustomers();
+      setData(list.map((item, index) => mapDtoToCustomer(item, index)));
+    } catch (err: any) {
+      setError(err.message || "Không thể tải danh sách khách hàng.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const [deleteConfirm, setDeleteConfirm] =
-    useState<number | null>(null);
-
-  const [viewItem, setViewItem] =
-    useState<Customer | null>(null);
-
-  const [cardsCustomer, setCardsCustomer] =
-    useState<Customer | null>(null);
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
 
   const filtered = data.filter((customer) => {
     const searchValue = keyword.trim().toLowerCase();
@@ -732,12 +325,12 @@ export default function CustomerManagement() {
   const openAdd = () => {
     setEditItem(null);
     setForm(defaultForm);
+    setFormError("");
     setShowModal(true);
   };
 
   const openEdit = (item: Customer) => {
     setEditItem(item);
-
     setForm({
       hoTen: item.hoTen,
       sdt: item.sdt,
@@ -745,68 +338,58 @@ export default function CustomerManagement() {
       diaChi: item.diaChi,
       ghiChu: "",
     });
-
+    setFormError("");
     setShowModal(true);
   };
 
-  const handleSave = () => {
-    if (!form.hoTen.trim() || !form.sdt.trim()) {
+  const handleSave = async () => {
+    setFormError("");
+    if (!form.hoTen.trim()) {
+      setFormError("Vui lòng nhập họ tên.");
+      return;
+    }
+    if (!form.sdt.trim()) {
+      setFormError("Vui lòng nhập số điện thoại.");
       return;
     }
 
-    if (editItem) {
-      setData((previous) =>
-        previous.map((customer) =>
-          customer.id === editItem.id
-            ? {
-                ...customer,
-                hoTen: form.hoTen,
-                sdt: form.sdt,
-                email: form.email,
-                diaChi: form.diaChi,
-              }
-            : customer
-        )
-      );
-    } else {
-      const newId =
-        data.length > 0
-          ? Math.max(...data.map((customer) => customer.id)) + 1
-          : 1;
-
-      const newCustomer: Customer = {
-        id: newId,
-        stt: data.length + 1,
-        maKH: `KH${String(newId).padStart(3, "0")}`,
-        hoTen: form.hoTen,
-        sdt: form.sdt,
-        email: form.email,
-        diaChi: form.diaChi,
-        soThe: 0,
-        trangThai: "Hoạt động",
-      };
-
-      setData((previous) => [
-        ...previous,
-        newCustomer,
-      ]);
+    try {
+      if (editItem) {
+        const payload: UpdateCustomerPayload = {
+          fullName: form.hoTen.trim(),
+          phone: form.sdt.trim(),
+          email: form.email.trim() || undefined,
+          address: form.diaChi.trim() || undefined,
+          note: form.ghiChu.trim() || undefined,
+          status: editItem.trangThai === "Hoạt động" ? "ACTIVE" : "INACTIVE",
+        };
+        await adminCardService.updateCustomer(editItem.id, payload);
+      } else {
+        const payload: CreateCustomerPayload = {
+          fullName: form.hoTen.trim(),
+          phone: form.sdt.trim(),
+          email: form.email.trim() || undefined,
+          address: form.diaChi.trim() || undefined,
+          note: form.ghiChu.trim() || undefined,
+        };
+        await adminCardService.createCustomer(payload);
+      }
+      await fetchCustomers();
+      setShowModal(false);
+      setForm(defaultForm);
+    } catch (err: any) {
+      setFormError(err.message || "Lưu khách hàng thất bại.");
     }
-
-    setShowModal(false);
-    setForm(defaultForm);
   };
 
-  const handleDelete = (id: number) => {
-    setData((previous) =>
-      previous
-        .filter((customer) => customer.id !== id)
-        .map((customer, index) => ({
-          ...customer,
-          stt: index + 1,
-        }))
-    );
-
-    setDeleteConfirm(null);
+  const handleDelete = async (id: number) => {
+    try {
+      await adminCardService.deleteCustomer(id);
+      await fetchCustomers();
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      alert(err.message || "Vô hiệu hóa khách hàng thất bại.");
+    }
   };
 
   const columns: Column[] = [
@@ -824,9 +407,7 @@ export default function CustomerManagement() {
       key: "hoTen",
       label: "Họ tên",
       render: (value: string) => (
-        <span className="font-medium text-gray-800">
-          {value}
-        </span>
+        <span className="font-medium text-gray-800">{value}</span>
       ),
     },
     {
@@ -845,19 +426,16 @@ export default function CustomerManagement() {
       key: "soThe",
       label: "Số thẻ tháng",
       width: "110px",
-      render: (_value: number, row: Customer) => {
-        const monthlyCardCount =
-          getMonthlyCards(row.id).length;
-
+      render: (value: number, row: Customer) => {
         return (
           <button
             type="button"
             onClick={() => setCardsCustomer(row)}
-            title="Xem danh sách thẻ tháng"
+            title="Xem danh sách thẻ liên kết"
             className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200"
           >
             <CreditCard className="h-3 w-3" />
-            {monthlyCardCount} thẻ
+            {value} thẻ
           </button>
         );
       },
@@ -868,9 +446,7 @@ export default function CustomerManagement() {
       render: (value: string) => (
         <span
           className={
-            value === "Hoạt động"
-              ? cls.badge.green
-              : cls.badge.red
+            value === "Hoạt động" ? cls.badge.green : cls.badge.red
           }
         >
           {value}
@@ -903,7 +479,7 @@ export default function CustomerManagement() {
 
           <button
             type="button"
-            title="Xóa"
+            title="Vô hiệu hóa"
             onClick={() => setDeleteConfirm(row.id)}
             className="rounded p-0.5 text-red-500 hover:bg-red-50 hover:text-red-700"
           >
@@ -980,11 +556,16 @@ export default function CustomerManagement() {
         </div>
       </div>
 
+      {error && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+
       <div className={cls.sectionCard}>
         <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-blue-600" />
-
             <span className="text-sm font-medium text-gray-700">
               Danh sách khách hàng
             </span>
@@ -995,7 +576,6 @@ export default function CustomerManagement() {
               <CreditCard className="h-3 w-3" />
               Click vào số thẻ tháng để xem chi tiết
             </span>
-
             <span className="text-xs text-gray-500">
               Tổng: {filtered.length} KH
             </span>
@@ -1003,20 +583,25 @@ export default function CustomerManagement() {
         </div>
 
         <div className="p-2">
-          <DataTable
-            columns={columns}
-            data={filtered}
-          />
+          {loading ? (
+            <div className="flex items-center justify-center p-8 text-sm text-gray-500">
+              Đang tải danh sách khách hàng...
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                data={filtered.slice((page - 1) * 10, page * 10)}
+              />
 
-          <Pagination
-            currentPage={page}
-            totalPages={Math.max(
-              1,
-              Math.ceil(filtered.length / 10)
-            )}
-            totalRecords={filtered.length}
-            onPageChange={setPage}
-          />
+              <Pagination
+                currentPage={page}
+                totalPages={Math.max(1, Math.ceil(filtered.length / 10))}
+                totalRecords={filtered.length}
+                onPageChange={setPage}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -1046,48 +631,19 @@ export default function CustomerManagement() {
 
             <div className="space-y-2.5 p-5">
               {[
-                {
-                  label: "Mã khách hàng",
-                  value: viewItem.maKH,
-                },
-                {
-                  label: "Họ tên",
-                  value: viewItem.hoTen,
-                },
-                {
-                  label: "Số điện thoại",
-                  value: viewItem.sdt,
-                },
-                {
-                  label: "Email",
-                  value: viewItem.email,
-                },
-                {
-                  label: "Địa chỉ",
-                  value: viewItem.diaChi,
-                },
-                {
-                  label: "Số thẻ tháng",
-                  value: String(
-                    getMonthlyCards(viewItem.id).length
-                  ),
-                },
-                {
-                  label: "Trạng thái",
-                  value: viewItem.trangThai,
-                },
+                { label: "Mã khách hàng", value: viewItem.maKH },
+                { label: "Họ tên", value: viewItem.hoTen },
+                { label: "Số điện thoại", value: viewItem.sdt },
+                { label: "Email", value: viewItem.email },
+                { label: "Địa chỉ", value: viewItem.diaChi },
+                { label: "Số thẻ tháng", value: String(viewItem.soThe) },
+                { label: "Trạng thái", value: viewItem.trangThai },
               ].map(({ label, value }) => (
-                <div
-                  key={label}
-                  className="flex gap-2 text-sm"
-                >
-                  <span className="w-36 flex-shrink-0 pt-0.5 text-xs text-gray-500">
+                <div key={label} className="flex gap-2 text-sm">
+                  <span className="w-36 flex-shrink-0 pt-0.5 text-xs text-gray-500 text-left">
                     {label}:
                   </span>
-
-                  <span className="font-medium text-gray-800">
-                    {value}
-                  </span>
+                  <span className="font-medium text-gray-800 text-left">{value}</span>
                 </div>
               ))}
             </div>
@@ -1110,9 +666,7 @@ export default function CustomerManagement() {
           <div className="w-[480px] rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
               <span className="text-sm font-semibold text-white">
-                {editItem
-                  ? "Chỉnh sửa khách hàng"
-                  : "Thêm khách hàng mới"}
+                {editItem ? "Chỉnh sửa khách hàng" : "Thêm khách hàng mới"}
               </span>
 
               <button
@@ -1124,13 +678,11 @@ export default function CustomerManagement() {
               </button>
             </div>
 
-            <div className="space-y-3 p-5">
+            <div className="space-y-3 p-5 text-left">
               <div>
                 <label className="mb-1 block text-xs text-gray-600">
-                  Họ tên{" "}
-                  <span className="text-red-500">*</span>
+                  Họ tên <span className="text-red-500">*</span>
                 </label>
-
                 <input
                   className={`${cls.input} w-full`}
                   placeholder="Nhập họ và tên"
@@ -1147,10 +699,8 @@ export default function CustomerManagement() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="mb-1 block text-xs text-gray-600">
-                    Số điện thoại{" "}
-                    <span className="text-red-500">*</span>
+                    Số điện thoại <span className="text-red-500">*</span>
                   </label>
-
                   <input
                     className={`${cls.input} w-full`}
                     placeholder="09xxxxxxxx"
@@ -1168,7 +718,6 @@ export default function CustomerManagement() {
                   <label className="mb-1 block text-xs text-gray-600">
                     Email
                   </label>
-
                   <input
                     className={`${cls.input} w-full`}
                     placeholder="email@gmail.com"
@@ -1187,7 +736,6 @@ export default function CustomerManagement() {
                 <label className="mb-1 block text-xs text-gray-600">
                   Địa chỉ
                 </label>
-
                 <input
                   className={`${cls.input} w-full`}
                   placeholder="Số nhà, đường, quận, thành phố"
@@ -1201,11 +749,31 @@ export default function CustomerManagement() {
                 />
               </div>
 
+              {editItem && (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-600">
+                    Trạng thái
+                  </label>
+                  <select
+                    className={`${cls.select} w-full`}
+                    value={editItem.trangThai}
+                    onChange={(event) => {
+                      const newStatus = event.target.value;
+                      setEditItem((prev) =>
+                        prev ? { ...prev, trangThai: newStatus } : null
+                      );
+                    }}
+                  >
+                    <option value="Hoạt động">Hoạt động</option>
+                    <option value="Khóa">Khóa</option>
+                  </select>
+                </div>
+              )}
+
               <div>
                 <label className="mb-1 block text-xs text-gray-600">
                   Ghi chú
                 </label>
-
                 <textarea
                   className={`${cls.input} h-16 w-full resize-none py-1.5`}
                   placeholder="Ghi chú thêm..."
@@ -1218,6 +786,12 @@ export default function CustomerManagement() {
                   }
                 />
               </div>
+
+              {formError && (
+                <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                  {formError}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
@@ -1252,14 +826,12 @@ export default function CustomerManagement() {
                   <Trash2 className="h-4 w-4 text-red-600" />
                 </div>
 
-                <div>
+                <div className="text-left">
                   <p className="text-sm font-semibold text-gray-800">
-                    Xác nhận xóa
+                    Xác nhận vô hiệu hóa
                   </p>
-
                   <p className="mt-0.5 text-xs text-gray-500">
-                    Bạn có chắc muốn xóa khách hàng này
-                    không?
+                    Bạn có chắc muốn vô hiệu hóa khách hàng này không? (Trạng thái sẽ đổi sang Khóa)
                   </p>
                 </div>
               </div>
@@ -1269,12 +841,10 @@ export default function CustomerManagement() {
               <button
                 type="button"
                 className={cls.btnDanger}
-                onClick={() =>
-                  handleDelete(deleteConfirm)
-                }
+                onClick={() => handleDelete(deleteConfirm)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Xóa
+                Khóa
               </button>
 
               <button

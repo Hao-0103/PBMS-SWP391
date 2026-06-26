@@ -12,6 +12,7 @@ public record ProfileResponse(
         String phone,
         String address, // USER only
         String shift,   // STAFF only
+        String staffCode, // STAFF only
         LocalDateTime createdAt
 ) {
 }

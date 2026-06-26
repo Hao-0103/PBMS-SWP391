@@ -5,14 +5,17 @@ import {
   ArrowDownToLine, ArrowUpFromLine,
   ClipboardList, AlertOctagon,
   CheckCircle, AlertTriangle, Info, XCircle,
+  Layers,
 } from "lucide-react";
+import { FloorDto, LaneDto, StaffAssignmentDto } from "../../../services/staffService";
 
 export type StaffScreen =
   | "dashboard"
   | "vehicle-entry"
   | "vehicle-exit"
   | "transaction-history"
-  | "exceptions";
+  | "exceptions"
+  | "floor-slot";
 
 interface StaffLayoutProps {
   currentScreen: StaffScreen;
@@ -20,6 +23,13 @@ interface StaffLayoutProps {
   onLogout: () => void;
   children: React.ReactNode;
   staffName?: string;
+  selectedFloorCode: string;
+  selectedLaneCode: string;
+  floors: FloorDto[];
+  lanes: LaneDto[];
+  onFloorChange: (code: string) => void;
+  onLaneChange: (code: string) => void;
+  assignment?: StaffAssignmentDto | null;
 }
 
 const navItems: { screen: StaffScreen; label: string; icon: React.FC<{ className?: string }> }[] = [
@@ -27,7 +37,8 @@ const navItems: { screen: StaffScreen; label: string; icon: React.FC<{ className
   { screen: "vehicle-entry",       label: "Xe vào",                  icon: ArrowDownToLine },
   { screen: "vehicle-exit",        label: "Xe ra",                   icon: ArrowUpFromLine },
   { screen: "transaction-history", label: "Lịch sử giao dịch",  icon: History },
-  { screen: "exceptions",           label: "Ngoại lệ",           icon: AlertOctagon },
+  { screen: "floor-slot",          label: "Quản lý slot",            icon: Layers },
+  { screen: "exceptions",          label: "Hỗ trợ",                  icon: AlertOctagon },
 ];
 
 const breadcrumbMap: Record<StaffScreen, string> = {
@@ -35,7 +46,8 @@ const breadcrumbMap: Record<StaffScreen, string> = {
   "vehicle-entry":       "Xe vào",
   "vehicle-exit":        "Xe ra",
   "transaction-history": "Lịch sử giao dịch",
-  "exceptions":          "Xử lý ngoại lệ",
+  "floor-slot":          "Quản lý slot",
+  "exceptions":          "Hỗ trợ",
 };
 
 interface Notif {
@@ -56,7 +68,20 @@ const SAMPLE_NOTIFS: Notif[] = [
   { id: 5, icon: XCircle,        iconColor: "text-red-500",    title: "Vi phạm bị từ chối",         body: "VIO-007 bị Admin từ chối – cần xem lại bằng chứng.", time: "8/6",     read: true },
 ];
 
-export default function StaffLayout({ currentScreen, onNavigate, onLogout, children, staffName = "Nhân viên 01" }: StaffLayoutProps) {
+export default function StaffLayout({
+  currentScreen,
+  onNavigate,
+  onLogout,
+  children,
+  staffName = "Nhân viên 01",
+  selectedFloorCode,
+  selectedLaneCode,
+  floors,
+  lanes,
+  onFloorChange,
+  onLaneChange,
+  assignment,
+}: StaffLayoutProps) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifs, setNotifs] = useState<Notif[]>(SAMPLE_NOTIFS);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -74,6 +99,20 @@ export default function StaffLayout({ currentScreen, onNavigate, onLogout, child
   }, []);
 
   const markAllRead = () => setNotifs(prev => prev.map(n => ({ ...n, read: true })));
+
+  const allowedNavItems = navItems.filter(item => {
+    if (!assignment) {
+      // If not assigned today, hide entry/exit operations
+      return item.screen !== "vehicle-entry" && item.screen !== "vehicle-exit";
+    }
+    if (assignment.laneType === "ENTRY" && item.screen === "vehicle-exit") {
+      return false;
+    }
+    if (assignment.laneType === "EXIT" && item.screen === "vehicle-entry") {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden" style={{ fontFamily: "system-ui, -apple-system, sans-serif" }}>
@@ -101,7 +140,7 @@ export default function StaffLayout({ currentScreen, onNavigate, onLogout, child
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-          {navItems.map(item => {
+          {allowedNavItems.map(item => {
             const Icon = item.icon;
             const isActive = currentScreen === item.screen;
             return (
@@ -137,10 +176,57 @@ export default function StaffLayout({ currentScreen, onNavigate, onLogout, child
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Topbar */}
         <header className="h-11 bg-[#dbeafe] border-b border-blue-200 flex items-center justify-between px-4 flex-shrink-0 shadow-sm">
-          <div className="flex items-center gap-1 text-xs text-gray-600">
-            <span className="text-blue-600 cursor-pointer hover:underline">Trang chủ</span>
-            <ChevronRight className="w-3 h-3 text-gray-400" />
-            <span className="text-gray-700 font-medium">{breadcrumbMap[currentScreen]}</span>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1 text-xs text-gray-600">
+              <span className="text-blue-600 cursor-pointer hover:underline">Trang chủ</span>
+              <ChevronRight className="w-3 h-3 text-gray-400" />
+              <span className="text-gray-700 font-medium">{breadcrumbMap[currentScreen]}</span>
+            </div>
+
+            {assignment ? (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 bg-blue-50/90 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold">
+                  <span className="uppercase text-[9px] text-blue-500 font-extrabold tracking-wider">Tầng trực:</span>
+                  <span>{assignment.floorName} ({assignment.floorCode})</span>
+                </div>
+                <div className="flex items-center gap-1.5 bg-indigo-50/90 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs font-semibold">
+                  <span className="uppercase text-[9px] text-indigo-500 font-extrabold tracking-wider">Làn trực:</span>
+                  <span>{assignment.laneName} ({assignment.laneType === "ENTRY" ? "Vào" : "Ra"})</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Floor selection */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase">Tầng:</span>
+                  <select
+                    value={selectedFloorCode}
+                    onChange={(e) => onFloorChange(e.target.value)}
+                    className="h-6 text-[11px] bg-white border border-blue-300 rounded px-1.5 py-0 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
+                  >
+                    <option value="">-- Chọn tầng --</option>
+                    {floors.map(f => (
+                      <option key={f.floorId} value={f.floorCode}>{f.floorName}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Lane selection */}
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-semibold text-gray-500 uppercase">Làn:</span>
+                  <select
+                    value={selectedLaneCode}
+                    onChange={(e) => onLaneChange(e.target.value)}
+                    className="h-6 text-[11px] bg-white border border-blue-300 rounded px-1.5 py-0 text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-400 font-medium"
+                  >
+                    <option value="">-- Chọn làn --</option>
+                    {lanes.map(l => (
+                      <option key={l.laneId} value={l.laneCode}>{l.laneName} ({l.laneType === "ENTRY" ? "Vào" : "Ra"})</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-3">
             {/* Bell + Notification Dropdown */}

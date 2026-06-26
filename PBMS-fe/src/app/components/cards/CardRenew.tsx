@@ -14,15 +14,16 @@ interface CardItem {
   nhomThe: string;
   ngayHetHan: string;
   trangThai: string;
+  tangGuiXe: string;
 }
 
 const cardData: CardItem[] = [
-  { id: 1, cardNo: "0002100001", maThe: "TM001", bienSo: "59A-123.45", khachHang: "Nguyễn Văn An", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-20", trangThai: "Sắp hết hạn" },
-  { id: 2, cardNo: "0002100002", maThe: "TM002", bienSo: "51F-888.88", khachHang: "Trần Thị Bích", nhomThe: "THẺ THÁNG Ô TÔ", ngayHetHan: "2024-01-18", trangThai: "Hết hạn" },
-  { id: 3, cardNo: "0002100003", maThe: "TM003", bienSo: "29X3-144.84", khachHang: "Lê Văn Cường", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-25", trangThai: "Sắp hết hạn" },
-  { id: 4, cardNo: "0002100004", maThe: "TM004", bienSo: "30G-456.78", khachHang: "Phạm Thị Duyên", nhomThe: "THẺ THÁNG Ô TÔ", ngayHetHan: "2024-02-28", trangThai: "Còn hạn" },
-  { id: 5, cardNo: "0002100005", maThe: "TM005", bienSo: "43A-999.11", khachHang: "Hoàng Văn Em", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-10", trangThai: "Hết hạn" },
-  { id: 6, cardNo: "0002100006", maThe: "TM006", bienSo: "61C-333.55", khachHang: "Vũ Thị Phương", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2025-03-31", trangThai: "Còn hạn" },
+  { id: 1, cardNo: "0002100001", maThe: "TM001", bienSo: "59A-123.45", khachHang: "Nguyễn Văn An", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-20", trangThai: "Sắp hết hạn", tangGuiXe: "Tầng 1" },
+  { id: 2, cardNo: "0002100002", maThe: "TM002", bienSo: "51F-888.88", khachHang: "Trần Thị Bích", nhomThe: "THẺ THÁNG Ô TÔ", ngayHetHan: "2024-01-18", trangThai: "Hết hạn", tangGuiXe: "Tầng 2" },
+  { id: 3, cardNo: "0002100003", maThe: "TM003", bienSo: "29X3-144.84", khachHang: "Lê Văn Cường", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-25", trangThai: "Sắp hết hạn", tangGuiXe: "Tầng 1" },
+  { id: 4, cardNo: "0002100004", maThe: "TM004", bienSo: "30G-456.78", khachHang: "Phạm Thị Duyên", nhomThe: "THẺ THÁNG Ô TÔ", ngayHetHan: "2024-02-28", trangThai: "Còn hạn", tangGuiXe: "Tầng 3" },
+  { id: 5, cardNo: "0002100005", maThe: "TM005", bienSo: "43A-999.11", khachHang: "Hoàng Văn Em", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2024-01-10", trangThai: "Hết hạn", tangGuiXe: "Tầng 2" },
+  { id: 6, cardNo: "0002100006", maThe: "TM006", bienSo: "61C-333.55", khachHang: "Vũ Thị Phương", nhomThe: "THẺ THÁNG XE MÁY", ngayHetHan: "2025-03-31", trangThai: "Còn hạn", tangGuiXe: "Tầng 3" },
 ];
 
 function addMonths(dateStr: string, months: number): string {
@@ -62,6 +63,7 @@ export default function CardRenew() {
     { key: "cardNo", label: "CardNo" },
     { key: "maThe", label: "Mã thẻ" },
     { key: "bienSo", label: "Biển số" },
+    { key: "tangGuiXe", label: "Tầng" },
     { key: "khachHang", label: "Khách hàng" },
     { key: "nhomThe", label: "Nhóm thẻ" },
     {
@@ -173,6 +175,7 @@ export default function CardRenew() {
                     { label: "CardNo", value: selected.cardNo },
                     { label: "Mã thẻ", value: selected.maThe },
                     { label: "Biển số", value: selected.bienSo },
+                    { label: "Tầng gửi xe", value: selected.tangGuiXe },
                     { label: "Khách hàng", value: selected.khachHang || "---" },
                     { label: "Nhóm thẻ", value: selected.nhomThe },
                   ].map(({ label, value }) => (

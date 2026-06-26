@@ -27,7 +27,7 @@ export default function Login({ onLogin }: LoginProps) {
     setError("");
 
     try {
-      const user = await authService.login(username, password);
+      const user = await authService.login(username, password, remember);
       onLogin(user.role, user.name);
     } catch (err) {
       if (err instanceof Error) {

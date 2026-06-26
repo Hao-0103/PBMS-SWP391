@@ -50,8 +50,6 @@ const initialProfile: Profile = {
 };
 
 // Chỉ dùng để demo frontend
-const DEMO_CURRENT_PASSWORD = "123456";
-
 export default function UserDashboard({
   userName,
 }: UserDashboardProps) {
@@ -169,8 +167,7 @@ export default function UserDashboard({
     setCurrentPasswordError("");
 
     try {
-      const username = localStorage.getItem("username") || "";
-      await authService.login(username, currentPassword);
+      await authService.confirmPassword(currentPassword);
 
       setShowConfirmPassword(false);
       setCurrentPassword("");
@@ -323,39 +320,6 @@ export default function UserDashboard({
         <span className="text-sm font-semibold text-blue-700 tabular-nums">
           {timeStr}
         </span>
-      </div>
-
-      {/* Thống kê */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-            <CreditCard className="w-5 h-5 text-emerald-600" />
-          </div>
-
-          <div>
-            <div className="text-xl font-bold text-gray-800">2</div>
-
-            <div className="text-xs text-gray-500">
-              Thẻ tháng đang hoạt động
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-gray-200 rounded shadow-sm px-4 py-3 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <Calendar className="w-5 h-5 text-blue-600" />
-          </div>
-
-          <div>
-            <div className="text-xl font-bold text-gray-800">
-              358
-            </div>
-
-            <div className="text-xs text-gray-500">
-              Ngày là thành viên
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Hồ sơ */}

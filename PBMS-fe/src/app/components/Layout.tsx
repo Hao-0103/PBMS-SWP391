@@ -13,10 +13,10 @@ import {
 export type Screen =
   | "dashboard"
   | "vehicle-entry-exit"
-  | "alert-events"
   | "card-history"
   | "customer-management"
   | "card-groups"
+  | "card-violation-rules"
   | "user-management"
   | "staff-assignment"
   | "admin-floor-slot"
@@ -32,14 +32,14 @@ interface LayoutProps {
 const screenBreadcrumb: Record<Screen, string> = {
   dashboard:             "Dashboard",
   "vehicle-entry-exit":  "Báo cáo > Xe vào / ra",
-  "alert-events":        "Báo cáo > Sự kiện cảnh báo",
   "card-history":        "Quản lý thẻ > Lịch sử thẻ",
   "customer-management": "Quản lý khách hàng",
   "card-groups":         "Quản lý thẻ > Nhóm thẻ",
+  "card-violation-rules":"Quản lý thẻ > Thẻ vi phạm",
   "user-management":     "Hệ thống > Quản lý người dùng",
   "staff-assignment":    "Hệ thống > Phân công nhân viên",
   "admin-floor-slot":    "Hệ thống > Quản lý slot",
-  "admin-exceptions": "Hệ thống > Xử lý đơn",
+  "admin-exceptions":    "Hệ thống > Xử lý đơn",
 };
 
 type SectionKey = "reports" | "cards" | "customers" | "system";
@@ -51,7 +51,6 @@ const menuSections = [
     icon: BarChart2,
     items: [
       { screen: "vehicle-entry-exit" as Screen, label: "Xe vào / ra",        icon: ArrowRightLeft },
-      { screen: "alert-events"       as Screen, label: "Sự kiện cảnh báo",   icon: AlertTriangle },
     ],
   },
   {
@@ -61,6 +60,7 @@ const menuSections = [
     items: [
       { screen: "card-history" as Screen, label: "Lịch sử thẻ",  icon: History },
       { screen: "card-groups"  as Screen, label: "Nhóm thẻ",     icon: Tag },
+      { screen: "card-violation-rules" as Screen, label: "Thẻ vi phạm", icon: AlertTriangle },
     ],
   },
   {
@@ -79,11 +79,7 @@ const menuSections = [
       { screen: "user-management"   as Screen, label: "Quản lý người dùng",  icon: UserCog },
       { screen: "staff-assignment"  as Screen, label: "Phân công nhân viên", icon: ClipboardList },
       { screen: "admin-floor-slot"  as Screen, label: "Quản lý slot",        icon: Layers },
-     {
-  screen: "admin-exceptions" as Screen,
-  label: "Xử lý đơn",
-  icon: AlertOctagon,
-},
+      { screen: "admin-exceptions" as Screen, label: "Xử lý đơn", icon: AlertOctagon },
     ],
   },
 ];

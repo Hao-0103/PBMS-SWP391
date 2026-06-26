@@ -16,7 +16,9 @@ import {
   AlertCircle,
   ShieldCheck,
   CheckCircle,
+  Loader2,
 } from "lucide-react";
+import { authService } from "../../../services/authService";
 
 interface StaffDashboardProps {
   staffName: string;
@@ -27,7 +29,6 @@ interface StaffProfile {
   maNhanVien: string;
   email: string;
   soDienThoai: string;
-  boPhan: string;
   ngayVaoLam: string;
   caLamViec: string;
   vaiTro: string;
@@ -37,44 +38,20 @@ interface FormErrors {
   hoTen?: string;
   email?: string;
   soDienThoai?: string;
-  boPhan?: string;
   newPassword?: string;
   confirmPassword?: string;
 }
 
-const DEMO_CURRENT_PASSWORD = "123456";
-
 export default function StaffDashboard({
   staffName,
 }: StaffDashboardProps) {
-  const generateStaffCode = (name: string) => {
-    const numbers = name.replace(/\D/g, "");
-
-    return numbers
-      ? `NV-${numbers.padStart(3, "0")}`
-      : "NV-001";
-  };
-
-  const generateStaffEmail = (name: string) => {
-    return (
-      name
-        .trim()
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/đ/g, "d")
-        .replace(/\s+/g, ".") + "@parking.vn"
-    );
-  };
-
   const createInitialProfile = (): StaffProfile => ({
     hoTen: staffName,
-    maNhanVien: generateStaffCode(staffName),
-    email: generateStaffEmail(staffName),
+    maNhanVien: "NV-001",
+    email: "staff@parking.vn",
     soDienThoai: "0901 234 567",
-    boPhan: "Nhân viên bãi xe",
     ngayVaoLam: "01/03/2023",
-    caLamViec: "Ca sáng 06:00 – 14:00",
+    caLamViec: "chưa được phân công",
     vaiTro: "Parking Staff",
   });
 
@@ -85,6 +62,8 @@ export default function StaffDashboard({
   const [form, setForm] = useState<StaffProfile>(
     createInitialProfile
   );
+
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   // Đồng hồ chạy theo thời gian thực
   const [now, setNow] = useState(new Date());
@@ -124,6 +103,30 @@ export default function StaffDashboard({
 
   // Thông báo lưu thành công
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const data = await authService.getProfile();
+        const formattedProfile: StaffProfile = {
+          hoTen: data.fullName,
+          maNhanVien: data.staffCode || "NV-001",
+          email: data.email,
+          soDienThoai: data.phone,
+          ngayVaoLam: data.createdAt ? new Date(data.createdAt).toLocaleDateString("vi-VN") : "01/03/2023",
+          caLamViec: data.shift || "chưa được phân công",
+          vaiTro: data.role || "Parking Staff",
+        };
+        setProfile(formattedProfile);
+        setForm(formattedProfile);
+      } catch (err) {
+        console.error("Error loading staff profile", err);
+      } finally {
+        setLoadingProfile(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -194,40 +197,7 @@ export default function StaffDashboard({
     setCurrentPasswordError("");
 
     try {
-      /*
-        Khi có backend, thay phần demo bằng API:
-
-        const response = await fetch(
-          "/api/staff/profile/confirm-password",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem(
-                "token"
-              )}`,
-            },
-            body: JSON.stringify({
-              password: currentPassword,
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error("Mật khẩu không chính xác.");
-        }
-      */
-
-      await new Promise((resolve) => {
-        window.setTimeout(resolve, 400);
-      });
-
-      if (currentPassword !== DEMO_CURRENT_PASSWORD) {
-        setCurrentPasswordError(
-          "Mật khẩu hiện tại không chính xác."
-        );
-        return;
-      }
+      await authService.confirmPassword(currentPassword);
 
       setShowPasswordConfirmation(false);
       setCurrentPassword("");
@@ -237,7 +207,7 @@ export default function StaffDashboard({
       setCurrentPasswordError(
         error instanceof Error
           ? error.message
-          : "Không thể xác nhận mật khẩu."
+          : "Mật khẩu không chính xác."
       );
     } finally {
       setCheckingPassword(false);
@@ -286,9 +256,7 @@ export default function StaffDashboard({
       }
     }
 
-    if (!form.boPhan.trim()) {
-      newErrors.boPhan = "Vui lòng nhập bộ phận.";
-    }
+
 
     if (newPassword || confirmNewPassword) {
       if (!newPassword) {
@@ -322,42 +290,25 @@ export default function StaffDashboard({
     }
 
     try {
-      /*
-        Khi có backend:
-
-        const response = await fetch("/api/staff/profile", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem(
-              "token"
-            )}`,
-          },
-          body: JSON.stringify({
-            fullName: form.hoTen,
-            email: form.email,
-            phone: form.soDienThoai,
-            department: form.boPhan,
-            newPassword: newPassword || null,
-            confirmNewPassword:
-              confirmNewPassword || null,
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error(
-            "Không thể cập nhật hồ sơ nhân viên."
-          );
-        }
-      */
-
-      setProfile({
-        ...form,
-        hoTen: form.hoTen.trim(),
-        email: form.email.trim(),
-        soDienThoai: form.soDienThoai.trim(),
-        boPhan: form.boPhan.trim(),
+      const updatedData = await authService.updateProfile({
+        fullName: form.hoTen,
+        email: form.email,
+        phone: form.soDienThoai,
+        newPassword: newPassword || undefined
       });
+
+      const formattedProfile: StaffProfile = {
+        hoTen: updatedData.fullName,
+        maNhanVien: updatedData.staffCode || "NV-001",
+        email: updatedData.email,
+        soDienThoai: updatedData.phone,
+        ngayVaoLam: updatedData.createdAt ? new Date(updatedData.createdAt).toLocaleDateString("vi-VN") : "01/03/2023",
+        caLamViec: updatedData.shift || "chưa được phân công",
+        vaiTro: updatedData.role || "Parking Staff",
+      };
+
+      setProfile(formattedProfile);
+      setForm(formattedProfile);
 
       setShowEdit(false);
       setNewPassword("");
@@ -370,6 +321,7 @@ export default function StaffDashboard({
       }, 2500);
     } catch (error) {
       console.error(error);
+      alert(error instanceof Error ? error.message : "Không thể cập nhật hồ sơ.");
     }
   };
 
@@ -385,8 +337,7 @@ export default function StaffDashboard({
     if (
       field === "hoTen" ||
       field === "email" ||
-      field === "soDienThoai" ||
-      field === "boPhan"
+      field === "soDienThoai"
     ) {
       setErrors((previous) => ({
         ...previous,
@@ -417,11 +368,6 @@ export default function StaffDashboard({
       value: profile.soDienThoai,
     },
     {
-      icon: MapPin,
-      label: "Bộ phận",
-      value: profile.boPhan,
-    },
-    {
       icon: Calendar,
       label: "Ngày vào làm",
       value: profile.ngayVaoLam,
@@ -432,6 +378,14 @@ export default function StaffDashboard({
       value: profile.caLamViec,
     },
   ];
+
+  if (loadingProfile) {
+    return (
+      <div className="flex items-center justify-center min-h-[300px]">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-3">
@@ -805,41 +759,6 @@ export default function StaffDashboard({
                 )}
               </div>
 
-              {/* Bộ phận */}
-              <div>
-                <label
-                  htmlFor="staff-department"
-                  className="block text-sm text-gray-700 mb-1.5"
-                >
-                  Bộ phận
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-
-                <input
-                  id="staff-department"
-                  type="text"
-                  value={form.boPhan}
-                  onChange={(event) =>
-                    updateProfileField(
-                      "boPhan",
-                      event.target.value
-                    )
-                  }
-                  className={`w-full h-[46px] border rounded-md px-4 text-base focus:outline-none focus:ring-1 ${
-                    errors.boPhan
-                      ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                      : "border-gray-300 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                  placeholder="Nhập bộ phận..."
-                />
-
-                {errors.boPhan && (
-                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {errors.boPhan}
-                  </p>
-                )}
-              </div>
 
               {/* Ca làm việc */}
               <div>

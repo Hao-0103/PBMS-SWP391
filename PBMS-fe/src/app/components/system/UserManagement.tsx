@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Plus,
   Edit,
@@ -11,6 +10,12 @@ import {
 import { cls } from "../common/ui";
 import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
+import {
+  adminCardService,
+  UserDto,
+  CreateUserPayload,
+  UpdateUserPayload,
+} from "../../../services/adminCardService";
 
 interface User {
   id: number;
@@ -34,39 +39,6 @@ interface FormData {
   xacNhanMatKhau: string;
 }
 
-const initialUsers: User[] = [
-  {
-    id: 1,
-    stt: 1,
-    tenDangNhap: "admin",
-    hoTen: "Quản trị hệ thống",
-    vaiTro: "Admin",
-    sdt: "0912000001",
-    email: "admin@parkingsystem.vn",
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 2,
-    stt: 2,
-    tenDangNhap: "staff01",
-    hoTen: "Nhân viên 01",
-    vaiTro: "Parking Staff",
-    sdt: "0912000002",
-    email: "staff01@parkingsystem.vn",
-    trangThai: "Hoạt động",
-  },
-  {
-    id: 3,
-    stt: 3,
-    tenDangNhap: "staff02",
-    hoTen: "Nhân viên 02",
-    vaiTro: "Parking Staff",
-    sdt: "0912000003",
-    email: "staff02@parkingsystem.vn",
-    trangThai: "Khóa",
-  },
-];
-
 const defaultForm: FormData = {
   tenDangNhap: "",
   hoTen: "",
@@ -78,15 +50,63 @@ const defaultForm: FormData = {
   xacNhanMatKhau: "",
 };
 
+const mapDtoToUser = (dto: UserDto, index: number): User => {
+  let vaiTro = "User";
+  if (dto.roleName === "ADMIN") {
+    vaiTro = "Admin";
+  } else if (dto.roleName === "STAFF") {
+    vaiTro = "Parking Staff";
+  }
+
+  return {
+    id: dto.accountId,
+    stt: index + 1,
+    tenDangNhap: dto.username,
+    hoTen: dto.fullName,
+    vaiTro: vaiTro,
+    sdt: dto.phone || "",
+    email: dto.email || "",
+    trangThai: dto.status === "ACTIVE" ? "Hoạt động" : "Khóa",
+  };
+};
+
+const mapRoleToBackend = (vaiTro: string): string => {
+  if (vaiTro === "Admin") return "ADMIN";
+  if (vaiTro === "Parking Staff") return "STAFF";
+  return "USER";
+};
+
+const mapStatusToBackend = (trangThai: string): string => {
+  return trangThai === "Hoạt động" ? "ACTIVE" : "INACTIVE";
+};
+
 export default function UserManagement() {
-  const [users, setUsers] = useState<User[]>(initialUsers);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [page, setPage] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState<User | null>(null);
   const [form, setForm] = useState<FormData>(defaultForm);
   const [formError, setFormError] = useState("");
-  const [deleteConfirm, setDeleteConfirm] =
-    useState<number | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await adminCardService.getUsers();
+      setUsers(data.map((item, index) => mapDtoToUser(item, index)));
+    } catch (err: any) {
+      setError(err.message || "Không thể tải danh sách người dùng.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
 
   const openAdd = () => {
     setEditItem(null);
@@ -120,7 +140,7 @@ export default function UserManagement() {
     setFormError("");
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setFormError("");
 
     if (!form.tenDangNhap.trim()) {
@@ -153,68 +173,52 @@ export default function UserManagement() {
         setFormError("Mật khẩu xác nhận không khớp.");
         return;
       }
-
-      const usernameExists = users.some(
-        (user) =>
-          user.tenDangNhap.toLowerCase() ===
-          form.tenDangNhap.trim().toLowerCase()
-      );
-
-      if (usernameExists) {
-        setFormError("Tên đăng nhập đã tồn tại.");
+    } else {
+      if (form.matKhau.trim() && form.matKhau.trim().length < 6) {
+        setFormError("Mật khẩu mới phải có ít nhất 6 ký tự.");
         return;
       }
     }
 
-    if (editItem) {
-      setUsers((previous) =>
-        previous.map((user) =>
-          user.id === editItem.id
-            ? {
-                ...user,
-                hoTen: form.hoTen.trim(),
-                vaiTro: form.vaiTro,
-                sdt: form.sdt.trim(),
-                email: form.email.trim(),
-                trangThai: form.trangThai,
-              }
-            : user
-        )
-      );
-    } else {
-      const newId =
-        users.length > 0
-          ? Math.max(...users.map((user) => user.id)) + 1
-          : 1;
+    try {
+      if (editItem) {
+        const payload: UpdateUserPayload = {
+          fullName: form.hoTen.trim(),
+          roleName: mapRoleToBackend(form.vaiTro),
+          phone: form.sdt.trim() || undefined,
+          email: form.email.trim() || undefined,
+          status: mapStatusToBackend(form.trangThai),
+          password: form.matKhau.trim() || undefined,
+        };
+        await adminCardService.updateUser(editItem.id, payload);
+      } else {
+        const payload: CreateUserPayload = {
+          username: form.tenDangNhap.trim(),
+          fullName: form.hoTen.trim(),
+          roleName: mapRoleToBackend(form.vaiTro),
+          phone: form.sdt.trim() || undefined,
+          email: form.email.trim() || undefined,
+          password: form.matKhau.trim(),
+          status: mapStatusToBackend(form.trangThai),
+        };
+        await adminCardService.createUser(payload);
+      }
 
-      const newUser: User = {
-        id: newId,
-        stt: users.length + 1,
-        tenDangNhap: form.tenDangNhap.trim(),
-        hoTen: form.hoTen.trim(),
-        vaiTro: form.vaiTro,
-        sdt: form.sdt.trim(),
-        email: form.email.trim(),
-        trangThai: form.trangThai,
-      };
-
-      setUsers((previous) => [...previous, newUser]);
+      await fetchUsers();
+      closeModal();
+    } catch (err: any) {
+      setFormError(err.message || "Thao tác thất bại.");
     }
-
-    closeModal();
   };
 
-  const handleDelete = (id: number) => {
-    setUsers((previous) =>
-      previous
-        .filter((user) => user.id !== id)
-        .map((user, index) => ({
-          ...user,
-          stt: index + 1,
-        }))
-    );
-
-    setDeleteConfirm(null);
+  const handleDelete = async (id: number) => {
+    try {
+      await adminCardService.deleteUser(id);
+      await fetchUsers();
+      setDeleteConfirm(null);
+    } catch (err: any) {
+      alert(err.message || "Khóa tài khoản thất bại.");
+    }
   };
 
   const columns: Column[] = [
@@ -244,10 +248,12 @@ export default function UserManagement() {
           className={
             value === "Admin"
               ? "inline-flex items-center rounded border border-purple-200 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700"
-              : "inline-flex items-center rounded border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+              : value === "Parking Staff"
+              ? "inline-flex items-center rounded border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700"
+              : "inline-flex items-center rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700"
           }
         >
-          {value}
+          {value === "User" ? "Khách hàng" : value}
         </span>
       ),
     },
@@ -293,8 +299,8 @@ export default function UserManagement() {
             type="button"
             title={
               row.tenDangNhap === "admin"
-                ? "Không thể xóa tài khoản admin"
-                : "Xóa"
+                ? "Không thể khóa tài khoản admin"
+                : "Khóa/Xóa"
             }
             onClick={() =>
               row.tenDangNhap !== "admin" &&
@@ -314,13 +320,16 @@ export default function UserManagement() {
     },
   ];
 
+  const itemsPerPage = 10;
+  const totalPages = Math.ceil(users.length / itemsPerPage);
+  const paginatedUsers = users.slice((page - 1) * itemsPerPage, page * itemsPerPage);
+
   return (
     <div className="space-y-2">
       <div className={cls.filterSection}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <UserCog className="h-4 w-4 text-blue-600" />
-
             <span className="text-sm font-medium text-gray-700">
               Quản lý người dùng
             </span>
@@ -337,24 +346,19 @@ export default function UserManagement() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div className="flex items-center justify-between rounded border border-purple-200 bg-white px-4 py-3 shadow-sm">
           <div>
             <span className="mb-1 inline-flex items-center rounded border border-purple-200 bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700">
               Admin
             </span>
-
             <p className="text-xs text-gray-500">
               Toàn quyền quản trị hệ thống
             </p>
           </div>
 
           <span className="text-2xl font-bold text-purple-600">
-            {
-              users.filter(
-                (user) => user.vaiTro === "Admin"
-              ).length
-            }
+            {users.filter((user) => user.vaiTro === "Admin").length}
           </span>
         </div>
 
@@ -363,22 +367,37 @@ export default function UserManagement() {
             <span className="mb-1 inline-flex items-center rounded border border-green-200 bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700">
               Parking Staff
             </span>
-
             <p className="text-xs text-gray-500">
               Nhân viên vận hành bãi xe
             </p>
           </div>
 
           <span className="text-2xl font-bold text-green-600">
-            {
-              users.filter(
-                (user) =>
-                  user.vaiTro === "Parking Staff"
-              ).length
-            }
+            {users.filter((user) => user.vaiTro === "Parking Staff").length}
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between rounded border border-blue-200 bg-white px-4 py-3 shadow-sm">
+          <div>
+            <span className="mb-1 inline-flex items-center rounded border border-blue-200 bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+              Khách hàng
+            </span>
+            <p className="text-xs text-gray-500">
+              Chủ phương tiện đăng ký
+            </p>
+          </div>
+
+          <span className="text-2xl font-bold text-blue-600">
+            {users.filter((user) => user.vaiTro === "User").length}
           </span>
         </div>
       </div>
+
+      {error && (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
 
       <div className={cls.sectionCard}>
         <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
@@ -392,17 +411,25 @@ export default function UserManagement() {
         </div>
 
         <div className="p-2">
-          <DataTable
-            columns={columns}
-            data={users}
-          />
+          {loading ? (
+            <div className="flex items-center justify-center p-8 text-sm text-gray-500">
+              Đang tải danh sách người dùng...
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                data={paginatedUsers}
+              />
 
-          <Pagination
-            currentPage={page}
-            totalPages={1}
-            totalRecords={users.length}
-            onPageChange={setPage}
-          />
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages > 0 ? totalPages : 1}
+                totalRecords={users.length}
+                onPageChange={setPage}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -484,9 +511,8 @@ export default function UserManagement() {
                     }
                   >
                     <option value="Admin">Admin</option>
-                    <option value="Parking Staff">
-                      Parking Staff
-                    </option>
+                    <option value="Parking Staff">Parking Staff</option>
+                    <option value="User">Khách hàng</option>
                   </select>
                 </div>
 
@@ -505,9 +531,7 @@ export default function UserManagement() {
                       }))
                     }
                   >
-                    <option value="Hoạt động">
-                      Hoạt động
-                    </option>
+                    <option value="Hoạt động">Hoạt động</option>
                     <option value="Khóa">Khóa</option>
                   </select>
                 </div>
@@ -552,7 +576,7 @@ export default function UserManagement() {
                 </div>
               </div>
 
-              {!editItem && (
+              {!editItem ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="mb-1 block text-xs text-gray-600">
@@ -590,14 +614,34 @@ export default function UserManagement() {
                       onChange={(event) => {
                         setForm((previous) => ({
                           ...previous,
-                          xacNhanMatKhau:
-                            event.target.value,
+                          xacNhanMatKhau: event.target.value,
                         }));
 
                         setFormError("");
                       }}
                     />
                   </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-600">
+                    Mật khẩu mới (bỏ trống nếu không muốn đổi)
+                  </label>
+
+                  <input
+                    type="password"
+                    className={`${cls.input} w-full`}
+                    placeholder="Nhập mật khẩu mới"
+                    value={form.matKhau}
+                    onChange={(event) => {
+                      setForm((previous) => ({
+                        ...previous,
+                        matKhau: event.target.value,
+                      }));
+
+                      setFormError("");
+                    }}
+                  />
                 </div>
               )}
 
@@ -642,12 +686,11 @@ export default function UserManagement() {
 
                 <div>
                   <p className="text-sm font-semibold text-gray-800">
-                    Xác nhận xóa
+                    Xác nhận khóa tài khoản
                   </p>
 
                   <p className="mt-0.5 text-xs text-gray-500">
-                    Bạn có chắc muốn xóa tài khoản này
-                    không?
+                    Bạn có chắc muốn khóa tài khoản này không? (Trạng thái sẽ đổi sang Khóa)
                   </p>
                 </div>
               </div>
@@ -657,12 +700,10 @@ export default function UserManagement() {
               <button
                 type="button"
                 className={cls.btnDanger}
-                onClick={() =>
-                  handleDelete(deleteConfirm)
-                }
+                onClick={() => handleDelete(deleteConfirm)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                Xóa
+                Khóa
               </button>
 
               <button
@@ -679,4 +720,3 @@ export default function UserManagement() {
     </div>
   );
 }
-

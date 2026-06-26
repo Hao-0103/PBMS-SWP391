@@ -31,4 +31,13 @@ public class Admin {
 
     @Column(name = "accountId", nullable = false, unique = true)
     private Integer accountId;
+
+    @Column(name = "AdminCode", insertable = false, updatable = false)
+    private String adminCode;
+
+    @Column(name = "department", length = 100)
+    private String department;
+
+    @Column(name = "joinedDate")
+    private java.time.LocalDate joinedDate;
 }

@@ -1,0 +1,116 @@
+import { authService, ApiResponse } from "./authService";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
+
+export interface MonthlyCardDto {
+  id: number;
+  cardNo: string;
+  nhomThe: string;
+  loaiXe: string;
+  bienSo: string;
+  ngayDangKy: string;
+  ngayHetHan: string;
+  tangGuiXe?: string;
+  trangThai: "Hoạt động" | "Hết hạn" | "Sắp hết hạn";
+  soNgayConLai: number;
+}
+
+export interface RegisterCardRequest {
+  nhomThe: string;
+  bienSo: string;
+  tangGuiXe?: string;
+  duration: number;
+  amount: number;
+  startDate: string;
+}
+
+export interface RenewCardRequest {
+  cardId: number;
+  newExpiry: string;
+  duration: number;
+  amount: number;
+}
+
+export interface CardGroupDto {
+  cardGroupId: number;
+  groupName: string;
+  vehicleType: string;
+  ticketType: string;
+  basePrice: number;
+  defaultDurationDays?: number;
+  reservationAllowed: boolean;
+  description?: string;
+  status: string;
+}
+
+export const cardService = {
+  async getMyCards(): Promise<MonthlyCardDto[]> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/user/monthly-cards`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    const result: ApiResponse<MonthlyCardDto[]> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Không thể tải danh sách thẻ.");
+    }
+    return result.data;
+  },
+
+  async registerCard(payload: RegisterCardRequest): Promise<MonthlyCardDto> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/user/monthly-cards`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result: ApiResponse<MonthlyCardDto> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Đăng ký thẻ thất bại.");
+    }
+    return result.data;
+  },
+
+  async renewCard(payload: RenewCardRequest): Promise<MonthlyCardDto> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/user/monthly-cards/renew`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result: ApiResponse<MonthlyCardDto> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Gia hạn thẻ thất bại.");
+    }
+    return result.data;
+  },
+
+  async getActiveCardGroups(): Promise<CardGroupDto[]> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/user/monthly-cards/groups`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    const result: ApiResponse<CardGroupDto[]> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
+    }
+    return result.data;
+  }
+};

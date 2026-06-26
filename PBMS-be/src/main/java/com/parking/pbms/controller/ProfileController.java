@@ -1,6 +1,7 @@
 package com.parking.pbms.controller;
 
 import com.parking.pbms.dto.ApiResponse;
+import com.parking.pbms.dto.ConfirmPasswordRequest;
 import com.parking.pbms.dto.ProfileResponse;
 import com.parking.pbms.dto.ProfileUpdateRequest;
 import com.parking.pbms.service.ProfileService;
@@ -38,4 +39,15 @@ public class ProfileController {
                 ApiResponse.success(200, "Cập nhật hồ sơ thành công", response)
         );
     }
+    @PostMapping("/confirm-password")
+    public ResponseEntity<ApiResponse<Void>> confirmPassword(
+            @Valid @RequestBody ConfirmPasswordRequest request,
+            Principal principal
+    ) {
+        profileService.confirmPassword(principal.getName(), request.password());
+        return ResponseEntity.ok(
+                ApiResponse.success(200, "Xac nhan mat khau thanh cong", null)
+        );
+    }
 }
+

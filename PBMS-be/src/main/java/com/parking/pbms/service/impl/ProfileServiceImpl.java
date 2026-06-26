@@ -2,21 +2,19 @@ package com.parking.pbms.service.impl;
 
 import com.parking.pbms.dto.ProfileResponse;
 import com.parking.pbms.dto.ProfileUpdateRequest;
-import com.parking.pbms.model.Account;
-import com.parking.pbms.model.Admin;
-import com.parking.pbms.model.Staff;
-import com.parking.pbms.model.User;
-import com.parking.pbms.repository.AccountRepository;
-import com.parking.pbms.repository.AdminRepository;
-import com.parking.pbms.repository.StaffRepository;
-import com.parking.pbms.repository.UserRepository;
+import com.parking.pbms.model.*;
+import com.parking.pbms.repository.*;
 import com.parking.pbms.service.ProfileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,9 +22,12 @@ import java.util.Locale;
 public class ProfileServiceImpl implements ProfileService {
 
     private final AccountRepository accountRepository;
-    private final UserRepository userRepository;
-    private final StaffRepository staffRepository;
     private final AdminRepository adminRepository;
+    private final StaffRepository staffRepository;
+    private final UserRepository userRepository;
+    private final StaffAssignmentRepository staffAssignmentRepository;
+    private final WorkShiftRepository workShiftRepository;
+    private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -35,31 +36,41 @@ public class ProfileServiceImpl implements ProfileService {
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản: " + username));
 
-        String role = account.getRole().toUpperCase(Locale.ROOT);
-        String email = "";
-        String phone = "";
-        String address = null;
+        String role = account.getRoleName() != null ? account.getRoleName().toLowerCase(Locale.ROOT) : "";
         String shift = null;
+        String staffCode = null;
+        String address = account.getAddress();
 
-        if ("ADMIN".equals(role)) {
-            Admin admin = adminRepository.findByAccountId(account.getAccountId()).orElse(null);
-            if (admin != null) {
-                email = admin.getEmail();
-                phone = admin.getPhone();
+        // Fetch role-specific data
+        if ("staff".equals(role)) {
+            Optional<Staff> staffOpt = staffRepository.findByAccountId(account.getAccountId());
+            if (staffOpt.isPresent()) {
+                Staff staff = staffOpt.get();
+                staffCode = staff.getStaffCode();
+                
+                Optional<StaffAssignment> assignOpt = staffAssignmentRepository.findFirstByStaffIdAndWorkDateAndStatusNot(
+                        staff.getStaffId(),
+                        java.time.LocalDate.now(),
+                        "CANCELLED"
+                );
+                if (assignOpt.isPresent()) {
+                    Optional<WorkShift> wsOpt = workShiftRepository.findById(assignOpt.get().getShiftId());
+                    shift = wsOpt.map(WorkShift::getShiftName).orElse("chưa được phân công");
+                } else {
+                    shift = "chưa được phân công";
+                }
+                
+                address = staff.getDepartment();
             }
-        } else if ("STAFF".equals(role)) {
-            Staff staff = staffRepository.findByAccountId(account.getAccountId()).orElse(null);
-            if (staff != null) {
-                email = staff.getEmail();
-                phone = staff.getPhone();
-                shift = staff.getShift();
+        } else if ("user".equals(role)) {
+            Optional<User> userOpt = userRepository.findByAccountId(account.getAccountId());
+            if (userOpt.isPresent()) {
+                address = userOpt.get().getAddress();
             }
-        } else if ("USER".equals(role)) {
-            User user = userRepository.findByAccountId(account.getAccountId()).orElse(null);
-            if (user != null) {
-                email = user.getEmail();
-                phone = user.getPhone();
-                address = user.getAddress();
+        } else if ("admin".equals(role)) {
+            Optional<Admin> adminOpt = adminRepository.findByAccountId(account.getAccountId());
+            if (adminOpt.isPresent()) {
+                address = adminOpt.get().getDepartment();
             }
         }
 
@@ -67,12 +78,13 @@ public class ProfileServiceImpl implements ProfileService {
                 account.getAccountId(),
                 account.getUsername(),
                 account.getFullName(),
-                account.getRole().toLowerCase(Locale.ROOT),
+                role,
                 account.getStatus(),
-                email,
-                phone,
+                account.getEmail(),
+                account.getPhone(),
                 address,
                 shift,
+                staffCode,
                 account.getCreatedAt()
         );
     }
@@ -82,59 +94,121 @@ public class ProfileServiceImpl implements ProfileService {
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản: " + username));
 
-        // Update fullName on Account
-        account.setFullName(request.fullName());
+        String fullName = request.fullName().trim();
+        String email = request.email().trim();
+        String phone = request.phone().trim();
 
-        // Update password if provided
+        account.setFullName(fullName);
+        account.setEmail(email);
+        account.setPhone(phone);
+
         if (request.newPassword() != null && !request.newPassword().trim().isEmpty()) {
             account.setPasswordHash(passwordEncoder.encode(request.newPassword().trim()));
         }
 
         accountRepository.save(account);
 
-        String role = account.getRole().toUpperCase(Locale.ROOT);
-        String email = request.email();
-        String phone = request.phone();
-        String address = null;
+        String role = account.getRoleName() != null ? account.getRoleName().toLowerCase(Locale.ROOT) : "";
         String shift = null;
+        String staffCode = null;
+        String address = account.getAddress();
 
-        if ("ADMIN".equals(role)) {
-            Admin admin = adminRepository.findByAccountId(account.getAccountId())
-                    .orElseGet(() -> Admin.builder().accountId(account.getAccountId()).status("ACTIVE").build());
-            admin.setFullName(request.fullName());
-            admin.setEmail(request.email());
-            admin.setPhone(request.phone());
-            adminRepository.save(admin);
-        } else if ("STAFF".equals(role)) {
-            Staff staff = staffRepository.findByAccountId(account.getAccountId())
-                    .orElseGet(() -> Staff.builder().accountId(account.getAccountId()).status("ACTIVE").shift("MORNING").build());
-            staff.setFullName(request.fullName());
-            staff.setEmail(request.email());
-            staff.setPhone(request.phone());
-            shift = staff.getShift();
-            staffRepository.save(staff);
-        } else if ("USER".equals(role)) {
-            User user = userRepository.findByAccountId(account.getAccountId())
-                    .orElseGet(() -> User.builder().accountId(account.getAccountId()).status("ACTIVE").build());
-            user.setFullName(request.fullName());
-            user.setEmail(request.email());
-            user.setPhone(request.phone());
-            user.setAddress(request.address() != null ? request.address() : "");
-            address = user.getAddress();
-            userRepository.save(user);
+        // Keep the role-specific profile tables in sync with Accounts.
+        if ("staff".equals(role)) {
+            Optional<Staff> staffOpt = staffRepository.findByAccountId(account.getAccountId());
+            if (staffOpt.isPresent()) {
+                Staff staff = staffOpt.get();
+                staff.setFullName(fullName);
+                staff.setEmail(email);
+                staff.setPhone(phone);
+                if (request.address() != null) {
+                    staff.setDepartment(request.address().trim());
+                }
+                staffRepository.save(staff);
+                staffCode = staff.getStaffCode();
+                
+                Optional<StaffAssignment> assignOpt = staffAssignmentRepository.findFirstByStaffIdAndWorkDateAndStatusNot(
+                        staff.getStaffId(),
+                        java.time.LocalDate.now(),
+                        "CANCELLED"
+                );
+                if (assignOpt.isPresent()) {
+                    Optional<WorkShift> wsOpt = workShiftRepository.findById(assignOpt.get().getShiftId());
+                    shift = wsOpt.map(WorkShift::getShiftName).orElse("chưa được phân công");
+                } else {
+                    shift = "chưa được phân công";
+                }
+                
+                address = staff.getDepartment();
+            }
+            if (request.address() != null) {
+                account.setAddress(request.address().trim());
+                accountRepository.save(account);
+            }
+        } else if ("user".equals(role)) {
+            Optional<User> userOpt = userRepository.findByAccountId(account.getAccountId());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                user.setFullName(fullName);
+                user.setEmail(email);
+                user.setPhone(phone);
+                if (request.address() != null && !request.address().trim().isEmpty()) {
+                    user.setAddress(request.address().trim());
+                }
+                userRepository.save(user);
+                address = user.getAddress();
+            }
+            // Keep Customers table in sync
+            userRepository.updateCustomerProfile(account.getAccountId(), fullName, email, phone, address);
+        } else if ("admin".equals(role)) {
+            Optional<Admin> adminOpt = adminRepository.findByAccountId(account.getAccountId());
+            if (adminOpt.isPresent()) {
+                Admin admin = adminOpt.get();
+                admin.setFullName(fullName);
+                admin.setEmail(email);
+                admin.setPhone(phone);
+                if (request.address() != null) {
+                    admin.setDepartment(request.address().trim());
+                }
+                adminRepository.save(admin);
+                address = admin.getDepartment();
+            }
+            if (request.address() != null && !request.address().trim().isEmpty()) {
+                account.setAddress(request.address().trim());
+                accountRepository.save(account);
+            }
         }
 
         return new ProfileResponse(
                 account.getAccountId(),
                 account.getUsername(),
                 account.getFullName(),
-                account.getRole().toLowerCase(Locale.ROOT),
+                role,
                 account.getStatus(),
-                email,
-                phone,
+                account.getEmail(),
+                account.getPhone(),
                 address,
                 shift,
+                staffCode,
                 account.getCreatedAt()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void confirmPassword(String username, String password) {
+        Account account = accountRepository.findByUsernameIgnoreCase(username)
+                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay tai khoan: " + username));
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            account.getUsername(),
+                            password
+                    )
+            );
+        } catch (BadCredentialsException exception) {
+            throw new BadCredentialsException("Mat khau hien tai khong chinh xac");
+        }
     }
 }

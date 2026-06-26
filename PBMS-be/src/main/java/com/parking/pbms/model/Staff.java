@@ -34,4 +34,13 @@ public class Staff {
 
     @Column(name = "accountId", nullable = false, unique = true)
     private Integer accountId;
+
+    @Column(name = "StaffCode", insertable = false, updatable = false)
+    private String staffCode;
+
+    @Column(name = "department", length = 100)
+    private String department;
+
+    @Column(name = "joinedDate")
+    private java.time.LocalDate joinedDate;
 }

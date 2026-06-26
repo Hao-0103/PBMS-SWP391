@@ -27,7 +27,6 @@ interface AdminProfile {
   tenDangNhap: string;
   email: string;
   soDienThoai: string;
-  boPhan: string;
   ngayTaoTaiKhoan: string;
   vaiTro: string;
 }
@@ -36,7 +35,6 @@ interface FormErrors {
   hoTen?: string;
   email?: string;
   soDienThoai?: string;
-  boPhan?: string;
   newPassword?: string;
   confirmPassword?: string;
 }
@@ -46,7 +44,6 @@ const initialProfile: AdminProfile = {
   tenDangNhap: "admin",
   email: "admin@parking.vn",
   soDienThoai: "0909 888 777",
-  boPhan: "Ban quản lý hệ thống",
   ngayTaoTaiKhoan: "01/01/2023",
   vaiTro: "Quản trị viên hệ thống",
 };
@@ -273,9 +270,7 @@ export default function Dashboard({
       }
     }
 
-    if (!form.boPhan.trim()) {
-      newErrors.boPhan = "Vui lòng nhập bộ phận.";
-    }
+
 
     // Chỉ kiểm tra đổi mật khẩu khi admin nhập ít nhất một ô
     if (newPassword || confirmNewPassword) {
@@ -347,7 +342,6 @@ export default function Dashboard({
         hoTen: form.hoTen.trim(),
         email: form.email.trim(),
         soDienThoai: form.soDienThoai.trim(),
-        boPhan: form.boPhan.trim(),
       });
 
       setShowEdit(false);
@@ -377,8 +371,7 @@ export default function Dashboard({
     if (
       field === "hoTen" ||
       field === "email" ||
-      field === "soDienThoai" ||
-      field === "boPhan"
+      field === "soDienThoai"
     ) {
       setErrors((previous) => ({
         ...previous,
@@ -407,11 +400,6 @@ export default function Dashboard({
       icon: Phone,
       label: "Số điện thoại",
       value: profile.soDienThoai,
-    },
-    {
-      icon: MapPin,
-      label: "Bộ phận",
-      value: profile.boPhan,
     },
     {
       icon: Calendar,
@@ -812,40 +800,6 @@ export default function Dashboard({
               </div>
 
               {/* Bộ phận */}
-              <div>
-                <label
-                  htmlFor="admin-department"
-                  className="block text-sm text-gray-700 mb-1.5"
-                >
-                  Bộ phận
-                  <span className="text-red-500 ml-1">*</span>
-                </label>
-
-                <input
-                  id="admin-department"
-                  type="text"
-                  value={form.boPhan}
-                  onChange={(event) =>
-                    updateProfileField(
-                      "boPhan",
-                      event.target.value
-                    )
-                  }
-                  className={`w-full h-[46px] border rounded-md px-4 text-base focus:outline-none focus:ring-1 ${
-                    errors.boPhan
-                      ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                      : "border-gray-300 focus:border-blue-400 focus:ring-blue-100"
-                  }`}
-                  placeholder="Nhập bộ phận..."
-                />
-
-                {errors.boPhan && (
-                  <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
-                    <AlertCircle className="w-3.5 h-3.5" />
-                    {errors.boPhan}
-                  </p>
-                )}
-              </div>
 
               {/* Vai trò */}
               <div>
