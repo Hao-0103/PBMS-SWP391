@@ -9,7 +9,8 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-import FakeQR from "./FakeQR";
+import { QRCodeCanvas } from "qrcode.react";
+import PaymentModal from "./PaymentModal";
 import { staffService } from "../../../services/staffService";
 
 interface VehicleExitProps {
@@ -18,11 +19,15 @@ interface VehicleExitProps {
 }
 
 interface TicketInfo {
+  ticketId: number;
   maVe: string;
   bienSo: string;
   loaiXe: string;
+  vehicleType: string;
   tgVao: string;
   tgRa: string;
+  rawCheckInAt: string;
+  rawCheckOutAt: string;
   thoiGianGui: string;
   phi: number;
   qrPayload: string;
@@ -52,6 +57,7 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
   const [notFound, setNotFound] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [floorCode, setFloorCode] = useState(selectedFloorCode || "");
 
   const processCheckOut = async (code: string) => {
@@ -76,11 +82,15 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
       });
 
       const ticketInfo: TicketInfo = {
+        ticketId: resp.ticketId,
         maVe: resp.ticketNo,
         bienSo: resp.plateNoSnapshot,
         loaiXe: resp.vehicleType === "CAR" ? "Ô tô" : "Xe máy",
+        vehicleType: resp.vehicleType,
         tgVao: new Date(resp.checkInAt).toLocaleString("vi-VN"),
         tgRa: new Date(resp.checkOutAt || "").toLocaleString("vi-VN"),
+        rawCheckInAt: resp.checkInAt,
+        rawCheckOutAt: resp.checkOutAt || "",
         thoiGianGui: formatParkingDuration(resp.checkInAt, resp.checkOutAt || ""),
         phi: resp.feeAmount,
         qrPayload: resp.qrToken,
@@ -300,7 +310,7 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
             <div className="space-y-3 p-4">
               <div className="grid grid-cols-[94px_1fr] gap-3">
                 <div className="flex items-start justify-center rounded border border-gray-200 bg-white p-1.5">
-                  <FakeQR value={ticket.qrPayload} size={82} />
+                  <QRCodeCanvas value={ticket.qrPayload} size={82} />
                 </div>
 
                 <div>
@@ -352,14 +362,25 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
               </div>
 
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleConfirm}
-                  className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-green-700"
-                >
-                  <CheckCircle2 className="h-4 w-4" />
-                  Xác nhận thanh toán &amp; Cho xe ra
-                </button>
+                {ticket.phi > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsPaymentModalOpen(true)}
+                    className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    <QrCode className="h-4 w-4" />
+                    Thanh toán QR (VietQR)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-green-700"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Xác nhận &amp; Cho xe ra (Thẻ tháng)
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -374,6 +395,23 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
           )}
         </div>
       </div>
+      {ticket && (
+        <PaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          onSuccess={() => {
+            setIsPaymentModalOpen(false);
+            handleConfirm();
+          }}
+          ticketId={ticket.ticketId}
+          ticketNo={ticket.maVe}
+          plateNo={ticket.bienSo}
+          vehicleType={ticket.vehicleType}
+          checkInAt={ticket.rawCheckInAt}
+          checkOutAt={ticket.rawCheckOutAt}
+          feeAmount={ticket.phi}
+        />
+      )}
     </div>
   );
 }

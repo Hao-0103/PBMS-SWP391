@@ -20,4 +20,7 @@ public class MonthlyCardResponse {
     private String tangGuiXe;
     private String trangThai;
     private Integer soNgayConLai;
+    private String checkoutUrl;
+    private String qrCode;
+    private Long orderCode;
 }

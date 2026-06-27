@@ -5,6 +5,7 @@ import com.parking.pbms.dto.UpdateUserRequest;
 import com.parking.pbms.dto.UserResponse;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
+import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.UserManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

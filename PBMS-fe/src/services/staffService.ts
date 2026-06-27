@@ -462,5 +462,26 @@ export const staffService = {
       throw new Error(result.message || "Không thể tải thông tin ca trực của bạn.");
     }
     return result.data;
+  },
+
+  /**
+   * Kiểm tra trạng thái thanh toán của một vé xe.
+   * Backend trả về chuỗi: "PAID" | "PENDING" | "EXPIRED"
+   */
+  async checkPaymentStatus(ticketId: number): Promise<string> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/payments/check-status/${ticketId}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    const result: ApiResponse<string> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Không thể kiểm tra trạng thái thanh toán.");
+    }
+    return result.data;
   }
 };

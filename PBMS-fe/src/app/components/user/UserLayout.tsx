@@ -12,6 +12,7 @@ import {
   Info,
   AlertTriangle,
   LifeBuoy,
+  ShoppingCart,
 } from "lucide-react";
 
 export type UserScreen =

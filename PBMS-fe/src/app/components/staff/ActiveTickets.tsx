@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Search, RotateCcw, Eye, List, X } from "lucide-react";
-import FakeQR from "./FakeQR";
+import { QRCodeCanvas } from "qrcode.react";
 
 interface Ticket {
   id: number;
@@ -162,7 +162,7 @@ export default function ActiveTickets() {
             <div className="p-5">
               <div className="flex gap-4 items-start">
                 <div className="border border-gray-200 rounded p-1.5 flex-shrink-0">
-                  <FakeQR value={detail.maVe} size={120} />
+                  <QRCodeCanvas value={detail.maVe} size={120} />
                 </div>
                 <div className="flex-1 space-y-2.5">
                   {[

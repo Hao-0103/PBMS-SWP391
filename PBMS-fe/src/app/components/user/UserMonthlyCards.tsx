@@ -1,44 +1,22 @@
 import { useState, useEffect } from "react";
 import { CreditCard, Plus, RefreshCw, Eye, X, AlertTriangle, CheckCircle, Clock, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { cardService } from "../../../services/cardService";
 
-/* ── Inline fake QR ─────────────────────────────────────────────── */
-function hash(str: string): number {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
-  return h;
-}
-function FakeQR({ value, size = 140 }: { value: string; size?: number }) {
-  const CELLS = 21; const cell = size / CELLS; const seed = hash(value);
-  const isFixed = (r: number, c: number) => {
-    if ((r < 7 && c < 7) || (r < 7 && c >= CELLS - 7) || (r >= CELLS - 7 && c < 7)) return true;
-    return r === 6 || c === 6;
-  };
-  const isDark = (r: number, c: number) => {
-    if (isFixed(r, c)) {
-      const inC = (rr: number, cc: number) => rr >= 0 && rr < 7 && cc >= 0 && cc < 7;
-      const draw = (rr: number, cc: number) => {
-        if (rr === 0 || rr === 6 || cc === 0 || cc === 6) return true;
-        if (rr === 1 || rr === 5 || cc === 1 || cc === 5) return false;
-        return true;
-      };
-      if (inC(r, c)) return draw(r, c);
-      if (inC(r, c - (CELLS - 7))) return draw(r, c - (CELLS - 7));
-      if (inC(r - (CELLS - 7), c)) return draw(r - (CELLS - 7), c);
-      return (r + c) % 2 === 0;
-    }
-    return ((seed >>> ((r * CELLS + c) % 32)) & 1) === 1;
-  };
+/* ── VietQR config (tài khoản nhận tiền của bãi xe) ─────────────── */
+const VQR_BANK_BIN    = "970432";
+const VQR_ACCOUNT_NO  = "2323042004";
+const VQR_TEMPLATE_ID = "btat8lf";
+
+function buildVietQrUrl(amount: number, description: string): string {
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ display: "block", imageRendering: "pixelated" }}>
-      <rect width={size} height={size} fill="white" />
-      {Array.from({ length: CELLS }, (_, r) =>
-        Array.from({ length: CELLS }, (_, c) =>
-          isDark(r, c) ? <rect key={`${r}-${c}`} x={c * cell} y={r * cell} width={cell} height={cell} fill="#111" /> : null
-        )
-      )}
-    </svg>
+    `https://api.vietqr.io/image/${VQR_BANK_BIN}-${VQR_ACCOUNT_NO}-${VQR_TEMPLATE_ID}.jpg` +
+    `?amount=${Math.round(amount)}&addInfo=${encodeURIComponent(description)}`
   );
+}
+
+function buildCardQrUrl(cardNo: string, size: number): string {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&margin=0&data=${encodeURIComponent(cardNo)}`;
 }
 
 /* ── Types & data ────────────────────────────────────────────────── */
@@ -160,45 +138,12 @@ function StatusBadge({ card }: { card: MonthlyCard }) {
   return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700 border border-red-200"><X className="w-3 h-3" />Hết hạn</span>;
 }
 
-/* ── Payment QR step ─────────────────────────────────────────────── */
-function PaymentStep({ amount, label, qrKey, onDone, onClose }: {
-  amount: number; label: string; qrKey: string; onDone: () => void; onClose: () => void;
-}) {
-  return (
-    <div className="p-5 flex flex-col items-center gap-4">
-      <div className="text-center">
-        <p className="text-sm font-semibold text-gray-700 mb-0.5">{label}</p>
-        <p className="text-xs text-gray-400">Quét mã QR để thanh toán</p>
-      </div>
-      <div className="border-4 border-emerald-500 rounded-lg p-2 bg-white shadow">
-        <FakeQR value={qrKey} size={160} />
-      </div>
-      <div className="bg-emerald-600 rounded-lg px-6 py-3 text-center w-full">
-        <p className="text-emerald-100 text-xs mb-0.5">Số tiền thanh toán</p>
-        <p className="text-white text-2xl font-bold">{amount.toLocaleString("vi-VN")} VNĐ</p>
-      </div>
-      <p className="text-xs text-gray-400 text-center">Hỗ trợ: VietQR • MoMo • ZaloPay • VNPay</p>
-      <div className="flex gap-2 w-full">
-        <button onClick={onDone}
-          className="flex-1 h-[36px] bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded flex items-center justify-center gap-1.5 transition-colors">
-          <CheckCircle className="w-4 h-4" />Xác nhận đã thanh toán
-        </button>
-        <button onClick={onClose}
-          className="h-[36px] px-3 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm rounded transition-colors">
-          Hủy
-        </button>
-      </div>
-    </div>
-  );
-}
-
 /* ── Add Card Modal ──────────────────────────────────────────────── */
 function AddCardModal({ cardGroups, onSave, onClose }: {
   cardGroups: any[];
   onSave: (card: NewMonthlyCard) => void;
   onClose: () => void;
 }) {
-  const [step, setStep] = useState<"form"|"payment">("form");
   const [form, setForm] = useState(() => {
     const defaultGroup = cardGroups.find(g => g.groupName === "THẺ THÁNG XE MÁY") || cardGroups[0];
     const todayStr = getTodayDate();
@@ -211,13 +156,11 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
   });
   const [duration, setDuration] = useState(1);
   const [err, setErr] = useState("");
-  const [savedData, setSavedData] = useState<NewMonthlyCard | null>(null);
   const F = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const selectedGroup = cardGroups.find(g => g.groupName === form.nhomThe);
   const isDayCard = selectedGroup ? selectedGroup.ticketType === "DAY" : false;
   const loaiXe = selectedGroup ? (selectedGroup.vehicleType === "CAR" ? "Ô tô" : "Xe máy") : "Xe máy";
-  const isOto = loaiXe === "Ô tô";
   const today = getTodayDate();
   const ngayHetHan = isDayCard ? addDays(form.ngayDangKy, duration) : addMonths(form.ngayDangKy, duration);
 
@@ -241,12 +184,7 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
       ngayHetHan,
       tangGuiXe: form.tangGuiXe,
     };
-    setSavedData(data);
-    setStep("payment");
-  };
-
-  const handleDone = () => {
-    if (savedData) onSave(savedData);
+    onSave(data);
   };
 
   const unitPrice = selectedGroup ? selectedGroup.basePrice : 100000;
@@ -258,14 +196,12 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
         <div className="flex items-center justify-between px-5 py-3 bg-blue-600">
           <span className="text-white text-sm font-semibold flex items-center gap-2">
             <Plus className="w-4 h-4" />
-            {step === "form" ? "Đăng kí thẻ" : "Thanh toán"}
+            Đăng kí thẻ
           </span>
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
 
-        {step === "form" && (
-          <>
-            <div className="p-5 space-y-3">
+        <div className="p-5 space-y-3">
               {err && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</div>}
               <div>
                 <label className="block text-xs text-gray-600 mb-1">
@@ -372,30 +308,12 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
               </button>
               <button onClick={onClose} className="h-[34px] px-3 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm rounded transition-colors">Hủy</button>
             </div>
-          </>
-        )}
-
-        {step === "payment" && (
-          <PaymentStep
-            amount={price}
-            label={`Đăng ký ${form.nhomThe} — ${form.bienSo}`}
-            qrKey={`ADD-${form.bienSo}-${form.nhomThe}-${price}`}
-            onDone={handleDone}
-            onClose={onClose}
-          />
-        )}
       </div>
     </div>
   );
 }
 
 /* ── Renew Modal ─────────────────────────────────────────────────── */
-type RenewalOption = {
-  duration: number;
-  unit: "ngày" | "tháng";
-  price: number;
-};
-
 function RenewModal({ cardGroups, card, onSave, onClose }: {
   cardGroups: any[];
   card: MonthlyCard;
@@ -404,18 +322,13 @@ function RenewModal({ cardGroups, card, onSave, onClose }: {
 }) {
   const selectedGroup = cardGroups.find(g => g.groupName === card.nhomThe);
   const basePrice = selectedGroup ? selectedGroup.basePrice : 100000;
-
   const isDayCard = selectedGroup ? selectedGroup.ticketType === "DAY" : card.nhomThe.includes("NGÀY");
 
   const getRenewalOptions = () => {
     if (isDayCard) {
       return Array.from({ length: 29 }, (_, index) => {
         const days = index + 1;
-        return {
-          duration: days,
-          unit: "ngày" as const,
-          price: basePrice * days,
-        };
+        return { duration: days, unit: "ngày" as const, price: basePrice * days };
       });
     }
 
@@ -427,39 +340,19 @@ function RenewModal({ cardGroups, card, onSave, onClose }: {
 
     return Array.from({ length: 12 }, (_, index) => {
       const months = index + 1;
-      return {
-        duration: months,
-        unit: "tháng" as const,
-        price: getMonthlyPrice(months),
-      };
+      return { duration: months, unit: "tháng" as const, price: getMonthlyPrice(months) };
     });
   };
 
   const renewalOptions = getRenewalOptions();
-  const [step, setStep] = useState<"select" | "payment">("select");
-  const [selectedDuration, setSelectedDuration] = useState(
-    renewalOptions[0]?.duration ?? 1
-  );
-
-  const selectedOption =
-    renewalOptions.find(
-      (option) => option.duration === selectedDuration
-    ) ?? renewalOptions[0];
-
+  const [selectedDuration, setSelectedDuration] = useState(renewalOptions[0]?.duration ?? 1);
   const today = getTodayDate();
-
-  // Luôn gia hạn từ ngày hết hạn hiện tại nếu thẻ vẫn còn hạn.
-  // Nếu thẻ đã hết hạn thì bắt đầu lại từ ngày hiện tại.
-  // Không phụ thuộc vào trạng thái cũ vì trạng thái có thể chưa được đồng bộ.
-  const renewalBaseDate =
-    card.ngayHetHan >= today ? card.ngayHetHan : today;
-
+  const renewalBaseDate = card.ngayHetHan >= today ? card.ngayHetHan : today;
   const newExpiry = isDayCard
-    ? addDays(renewalBaseDate, selectedOption?.duration ?? 0)
-    : addMonths(renewalBaseDate, selectedOption?.duration ?? 0);
+    ? addDays(renewalBaseDate, selectedDuration)
+    : addMonths(renewalBaseDate, selectedDuration);
 
-  const price = selectedOption?.price ?? 0;
-  const canRenew = renewalOptions.length > 0 && price > 0;
+  const canRenew = renewalOptions.length > 0;
   const cardIsExpired = card.ngayHetHan < today;
 
   return (
@@ -468,159 +361,48 @@ function RenewModal({ cardGroups, card, onSave, onClose }: {
         <div className="flex items-center justify-between px-5 py-3 bg-emerald-600">
           <span className="text-white text-sm font-semibold flex items-center gap-2">
             <RefreshCw className="w-4 h-4" />
-            {step === "select"
-              ? `Gia hạn thẻ — ${card.cardNo}`
-              : "Thanh toán gia hạn"}
+            Gia hạn thẻ
           </span>
-          <button
-            onClick={onClose}
-            className="text-white/80 hover:text-white"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
 
-        {step === "select" && (
-          <>
-            <div className="p-5 space-y-4">
-              <div className="bg-gray-50 border border-gray-200 rounded p-3 space-y-2">
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 text-xs">CardNo:</span>
-                  <span className="text-xs font-semibold font-mono">
-                    {card.cardNo}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 text-xs">Biển số xe:</span>
-                  <span className="text-xs font-semibold uppercase">
-                    {card.bienSo}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 text-xs">Nhóm thẻ:</span>
-                  <span className="text-xs font-medium text-right">
-                    {card.nhomThe}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 text-xs">
-                    Ngày hết hạn hiện tại:
-                  </span>
-                  <span
-                    className={`text-xs font-semibold ${
-                      cardIsExpired ? "text-red-600" : "text-gray-800"
-                    }`}
-                  >
-                    {card.ngayHetHan}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <span className="text-gray-500 text-xs">
-                    Gia hạn tính từ:
-                  </span>
-                  <span className="text-xs font-semibold text-emerald-700">
-                    {renewalBaseDate}
-                  </span>
-                </div>
-              </div>
+        <div className="p-5 space-y-4">
+          <div className="bg-gray-50 border border-gray-200 rounded p-3 space-y-2">
+            <div className="flex justify-between gap-4"><span className="text-gray-500 text-xs">CardNo:</span><span className="text-xs font-semibold font-mono">{card.cardNo}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-gray-500 text-xs">Biển số xe:</span><span className="text-xs font-semibold uppercase">{card.bienSo}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-gray-500 text-xs">Ngày hết hạn hiện tại:</span><span className={`text-xs font-semibold ${cardIsExpired ? "text-red-600" : "text-gray-800"}`}>{card.ngayHetHan}</span></div>
+          </div>
 
-              {cardIsExpired && (
-                <div className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 flex items-start gap-1.5">
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                  <span>
-                    Thẻ đã hết hạn. Thời hạn mới sẽ được tính từ ngày hiện tại,
-                    không cộng tiếp từ ngày hết hạn cũ.
-                  </span>
-                </div>
-              )}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">{isDayCard ? "Số ngày gia hạn" : "Số tháng gia hạn"}</label>
+            <select
+              className="w-full h-[38px] border border-gray-300 rounded px-3 text-sm bg-white focus:outline-none focus:border-emerald-500"
+              value={selectedDuration}
+              onChange={(e) => setSelectedDuration(Number(e.target.value))}
+            >
+              {renewalOptions.map((option) => (
+                <option key={`${option.duration}-${option.unit}`} value={option.duration}>
+                  {option.duration} {option.unit} — {option.price.toLocaleString("vi-VN")} VNĐ
+                </option>
+              ))}
+            </select>
+          </div>
 
-              {renewalOptions.length > 0 ? (
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">
-                    {isDayCard
-                      ? "Số ngày gia hạn"
-                      : "Số tháng gia hạn"}
-                  </label>
+          <div className="bg-emerald-600 rounded-lg p-4">
+            <div className="flex justify-between text-emerald-100 text-xs mb-1"><span>Ngày hết hạn mới:</span><span className="font-semibold text-white">{newExpiry}</span></div>
+          </div>
+        </div>
 
-                  <select
-                    className="w-full h-[38px] border border-gray-300 rounded px-3 text-sm bg-white focus:outline-none focus:border-emerald-500"
-                    value={selectedDuration}
-                    onChange={(event) =>
-                      setSelectedDuration(Number(event.target.value))
-                    }
-                  >
-                    {renewalOptions.map((option) => (
-                      <option
-                        key={`${option.duration}-${option.unit}`}
-                        value={option.duration}
-                      >
-                        {option.duration} {option.unit} —{" "}
-                        {option.price.toLocaleString("vi-VN")} VNĐ
-                      </option>
-                    ))}
-                  </select>
-
-                  <p className="mt-1.5 text-[11px] text-gray-500">
-                    {isDayCard
-                      ? "Có thể chọn từ 1 đến 29 ngày."
-                      : "Có thể chọn từ 1 đến 12 tháng."}
-                  </p>
-                </div>
-              ) : (
-                <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                  Chưa cấu hình giá gia hạn cho nhóm thẻ này.
-                </div>
-              )}
-
-              <div className="bg-emerald-600 rounded-lg p-4">
-                <div className="flex justify-between text-emerald-100 text-xs mb-1">
-                  <span>Ngày hết hạn mới:</span>
-                  <span className="font-semibold text-white">
-                    {newExpiry}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-emerald-100 text-xs">
-                    Tổng tiền:
-                  </span>
-                  <span className="text-white text-2xl font-bold">
-                    {price.toLocaleString("vi-VN")} VNĐ
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200">
-              <button
-                onClick={() => setStep("payment")}
-                disabled={!canRenew}
-                className="flex items-center gap-1.5 h-[34px] px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
-              >
-                <QrCode className="w-3.5 h-3.5" />
-                Tiếp theo: Thanh toán
-              </button>
-              <button
-                onClick={onClose}
-                className="h-[34px] px-3 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm rounded transition-colors"
-              >
-                Hủy
-              </button>
-            </div>
-          </>
-        )}
-
-        {step === "payment" && selectedOption && (
-          <PaymentStep
-            amount={price}
-            label={`Gia hạn ${card.cardNo} thêm ${selectedOption.duration} ${selectedOption.unit}`}
-            qrKey={`RENEW-${card.id}-${card.cardNo}-${selectedOption.duration}-${selectedOption.unit}-${newExpiry}-${price}`}
-            onDone={() => {
-              onSave(card.id, newExpiry);
-              onClose();
-            }}
-            onClose={onClose}
-          />
-        )}
+        <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200">
+          <button
+            onClick={() => onSave(card.id, newExpiry)}
+            disabled={!canRenew}
+            className="flex items-center gap-1.5 h-[34px] px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors"
+          >
+            <QrCode className="w-3.5 h-3.5" />Tiếp theo: Thanh toán
+          </button>
+          <button onClick={onClose} className="h-[34px] px-3 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm rounded transition-colors">Hủy</button>
+        </div>
       </div>
     </div>
   );
@@ -636,10 +418,9 @@ function DetailModal({ card, onClose }: { card: MonthlyCard; onClose: () => void
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
         <div className="p-5 space-y-3">
-          {/* QR code for staff scanning */}
           <div className="flex flex-col items-center gap-1.5 py-2 bg-gray-50 rounded-lg border border-gray-200">
             <div className="border-2 border-blue-500 rounded-lg p-1.5 bg-white shadow-sm">
-              <FakeQR value={card.cardNo} size={130} />
+              <img src={buildCardQrUrl(card.cardNo, 130)} alt={`QR thẻ ${card.cardNo}`} width={130} height={130} className="object-contain" draggable={false} />
             </div>
             <p className="text-[10px] text-gray-400">Xuất trình mã QR này cho nhân viên quét khi vào/ra bãi</p>
           </div>
@@ -677,34 +458,104 @@ function DetailModal({ card, onClose }: { card: MonthlyCard; onClose: () => void
   );
 }
 
+/* ── Payment QR Modal ────────────────────────────────────────────── */
+function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { orderCode?: number; qrCode: string; checkoutUrl: string; onClose: () => void; onDone: () => void }) {
+  
+  useEffect(() => {
+    if (!orderCode) return;
+    
+    // Bắt đầu polling kiểm tra trạng thái
+    const interval = setInterval(async () => {
+      try {
+        const statusData = await cardService.checkPaymentStatus(orderCode);
+        if (statusData && statusData.status === "PAID") {
+          clearInterval(interval);
+          onDone(); // Thanh toán thành công, đóng modal và refresh
+        } else if (statusData && statusData.status === "CANCELLED") {
+          clearInterval(interval);
+          onClose(); // Đã huỷ, đóng modal
+        }
+      } catch (err) {
+        console.error("Lỗi polling trạng thái thanh toán", err);
+      }
+    }, 5000); // Check mỗi 5s
+
+    return () => clearInterval(interval);
+  }, [orderCode, onDone, onClose]);
+
+  const handleCancel = async () => {
+    if (!orderCode) {
+      onClose();
+      return;
+    }
+    
+    if (window.confirm("Bạn có chắc chắn muốn hủy thanh toán này không?")) {
+      try {
+        await cardService.cancelPayment(orderCode, "Người dùng chủ động hủy trên giao diện");
+        alert("Giao dịch đã được hủy bỏ thành công trên hệ thống");
+        onClose();
+      } catch (err: any) {
+        alert(err.message || "Lỗi khi hủy thanh toán");
+      }
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
+      <div className="bg-white rounded-lg shadow-xl w-[400px] overflow-hidden text-center">
+        <div className="flex items-center justify-between px-5 py-3 bg-blue-600">
+          <span className="text-white text-sm font-semibold">Thanh toán mã QR PayOS</span>
+          <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="p-5 flex flex-col items-center gap-4">
+          <p className="text-sm text-gray-600">Quét mã QR dưới đây bằng ứng dụng ngân hàng hoặc ví điện tử để thanh toán</p>
+          <div className="p-2 border rounded-xl bg-white shadow-sm inline-block">
+            <QRCodeSVG value={qrCode} size={256} />
+          </div>
+          <a href={checkoutUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline hover:text-blue-800">
+            Hoặc mở trang thanh toán PayOS
+          </a>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
+          <button onClick={handleCancel} className="px-4 py-1.5 border border-red-300 text-red-600 text-sm rounded hover:bg-red-50 transition-colors">Hủy thanh toán</button>
+          <button onClick={onDone} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">Tôi đã thanh toán</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Main ────────────────────────────────────────────────────────── */
 export default function UserMonthlyCards() {
   const [cards, setCards] = useState<MonthlyCard[]>([]);
   const [cardGroups, setCardGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
   const [showAdd, setShowAdd] = useState(false);
   const [renewCard, setRenewCard] = useState<MonthlyCard | null>(null);
   const [detailCard, setDetailCard] = useState<MonthlyCard | null>(null);
+  const [paymentQr, setPaymentQr] = useState<{orderCode?: number, qrCode: string, checkoutUrl: string} | null>(null);
+
+  const fetchCards = async () => {
+    setLoading(true);
+    try {
+      const [myCards, groups] = await Promise.all([
+        cardService.getMyCards(),
+        cardService.getActiveCardGroups()
+      ]);
+      setCards(myCards);
+      setCardGroups(groups);
+      setError("");
+    } catch (err: any) {
+      setError(err.message || "Không thể tải danh sách thẻ.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadInitialData = async () => {
-      setLoading(true);
-      try {
-        const [myCards, groups] = await Promise.all([
-          cardService.getMyCards(),
-          cardService.getActiveCardGroups()
-        ]);
-        setCards(myCards);
-        setCardGroups(groups);
-        setError("");
-      } catch (err: any) {
-        setError(err.message || "Không thể tải danh sách thẻ.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadInitialData();
+    fetchCards();
   }, []);
 
   const handleAdd = async (data: NewMonthlyCard) => {
@@ -731,8 +582,15 @@ export default function UserMonthlyCards() {
         amount,
         startDate: data.ngayDangKy,
       });
-      setCards(prev => [...prev, refreshCardStatus(newCard)]);
-      setShowAdd(false);
+      if (newCard.qrCode && newCard.checkoutUrl) {
+        setPaymentQr({ orderCode: newCard.orderCode, qrCode: newCard.qrCode, checkoutUrl: newCard.checkoutUrl });
+        setShowAdd(false);
+      } else if (newCard.checkoutUrl) {
+        window.location.href = newCard.checkoutUrl;
+      } else {
+        setCards(prev => [...prev, refreshCardStatus(newCard)]);
+        setShowAdd(false);
+      }
     } catch (err: any) {
       alert(err.message || "Đăng ký thẻ thất bại.");
     }
@@ -758,13 +616,11 @@ export default function UserMonthlyCards() {
     }
 
     const basePrice = selectedGroup ? selectedGroup.basePrice : 100000;
-
     const getMonthlyPrice = (m: number) => {
       if (m === 3) return Math.round(basePrice * 2.8);
       if (m === 6) return Math.round(basePrice * 5.4);
       return basePrice * m;
     };
-
     const amount = isDayCard ? basePrice * duration : getMonthlyPrice(duration);
 
     try {
@@ -772,9 +628,17 @@ export default function UserMonthlyCards() {
         cardId: id,
         newExpiry,
         duration,
-        amount
+        amount,
       });
-      setCards(prev => prev.map(c => c.id === id ? refreshCardStatus(updatedCard) : c));
+      if (updatedCard.qrCode && updatedCard.checkoutUrl) {
+        setPaymentQr({ orderCode: updatedCard.orderCode, qrCode: updatedCard.qrCode, checkoutUrl: updatedCard.checkoutUrl });
+        setRenewCard(null);
+      } else if (updatedCard.checkoutUrl) {
+        window.location.href = updatedCard.checkoutUrl;
+      } else {
+        setCards(prev => prev.map(c => c.id === id ? refreshCardStatus(updatedCard) : c));
+        setRenewCard(null);
+      }
     } catch (err: any) {
       alert(err.message || "Gia hạn thẻ thất bại.");
     }
@@ -862,6 +726,13 @@ export default function UserMonthlyCards() {
       {showAdd && cardGroups.length > 0 && <AddCardModal cardGroups={cardGroups} onSave={handleAdd}  onClose={() => setShowAdd(false)} />}
       {renewCard && cardGroups.length > 0 && <RenewModal cardGroups={cardGroups} card={renewCard} onSave={handleRenew} onClose={() => setRenewCard(null)} />}
       {detailCard && <DetailModal card={detailCard} onClose={() => setDetailCard(null)} />}
+      {paymentQr && <PaymentQrModal 
+        orderCode={paymentQr.orderCode}
+        qrCode={paymentQr.qrCode} 
+        checkoutUrl={paymentQr.checkoutUrl} 
+        onClose={() => { setPaymentQr(null); fetchCards(); }} 
+        onDone={() => { setPaymentQr(null); fetchCards(); }} 
+      />}
     </div>
   );
 }

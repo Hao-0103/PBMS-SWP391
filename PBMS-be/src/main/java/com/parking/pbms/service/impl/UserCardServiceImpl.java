@@ -5,6 +5,7 @@ import com.parking.pbms.dto.RegisterCardRequest;
 import com.parking.pbms.dto.RenewCardRequest;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
+import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.UserCardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,6 +17,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Collectors;
+
+import vn.payos.PayOS;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +34,7 @@ public class UserCardServiceImpl implements UserCardService {
     private final FloorRepository floorRepository;
     private final PaymentRepository paymentRepository;
     private final CardHistoryRepository cardHistoryRepository;
+    private final PayOS payOS;
 
     private final Random random = new Random();
 
@@ -44,6 +50,7 @@ public class UserCardServiceImpl implements UserCardService {
         List<Card> cards = cardRepository.findMonthlyAndDayCardsByCustomerId(customer.getCustomerId());
 
         return cards.stream()
+                .filter(card -> !"PENDING".equalsIgnoreCase(card.getStatus()) && !"INACTIVE".equalsIgnoreCase(card.getStatus()))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -117,8 +124,8 @@ public class UserCardServiceImpl implements UserCardService {
                 .registeredAt(LocalDate.now())
                 .effectiveFrom(startDate)
                 .expireAt(expireAt)
-                .status("ACTIVE")
-                .note("Đăng ký trực tuyến")
+                .status("PENDING")
+                .note("Đăng ký trực tuyến - chờ thanh toán")
                 .build();
         card = cardRepository.save(card);
 
@@ -131,10 +138,10 @@ public class UserCardServiceImpl implements UserCardService {
                 .paymentType("CARD_REGISTRATION")
                 .amount(calculatedAmount)
                 .paymentMethod("VIETQR")
-                .gateway("VIETQR")
+                .gateway("PAYOS")
                 .referenceCode("REG-" + card.getCardId() + "-" + System.currentTimeMillis())
-                .status("PAID")
-                .paidAt(LocalDateTime.now())
+                .status("PENDING")
+                .paidAt(null)
                 .build();
         payment = paymentRepository.save(payment);
 
@@ -150,7 +157,26 @@ public class UserCardServiceImpl implements UserCardService {
                 .build();
         cardHistoryRepository.save(history);
 
-        return mapToResponse(card);
+        MonthlyCardResponse response = mapToResponse(card);
+        
+        try {
+            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                    .orderCode(payment.getPaymentId().longValue())
+                    .amount(payment.getAmount().longValue())
+                    .description("Dang ky the " + card.getCardId())
+                    .returnUrl("http://localhost:5173/payment/success")
+                    .cancelUrl("http://localhost:5173/payment/cancel")
+                    .build();
+
+            CreatePaymentLinkResponse payOSResponse = payOS.paymentRequests().create(paymentData);
+            response.setCheckoutUrl(payOSResponse.getCheckoutUrl());
+            response.setQrCode(payOSResponse.getQrCode());
+            response.setOrderCode(payment.getPaymentId().longValue());
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi tạo link thanh toán PayOS: " + e.getMessage());
+        }
+
+        return response;
     }
 
     @Override
@@ -175,11 +201,11 @@ public class UserCardServiceImpl implements UserCardService {
         LocalDate oldExpiry = card.getExpireAt();
         LocalDate newExpiry = LocalDate.parse(request.newExpiry());
 
-        // Update Card
-        card.setExpireAt(newExpiry);
-        card.setStatus("ACTIVE");
-        card = cardRepository.save(card);
-
+        // Update Card - Do not set to active yet! Wait for webhook.
+        // We will keep the old expiry. The new expiry is saved in CardHistory.
+        // Wait, CardHistory already stores `newExpireAt`. So the webhook can apply it.
+        // But what if it's currently expired? We just wait for webhook.
+        
         java.math.BigDecimal calculatedAmount = calculateAmount(cardGroup, request.duration());
 
         // Create Payment
@@ -189,10 +215,10 @@ public class UserCardServiceImpl implements UserCardService {
                 .paymentType("CARD_RENEWAL")
                 .amount(calculatedAmount)
                 .paymentMethod("VIETQR")
-                .gateway("VIETQR")
+                .gateway("PAYOS")
                 .referenceCode("REN-" + card.getCardId() + "-" + System.currentTimeMillis())
-                .status("PAID")
-                .paidAt(LocalDateTime.now())
+                .status("PENDING")
+                .paidAt(null)
                 .build();
         payment = paymentRepository.save(payment);
 
@@ -205,11 +231,30 @@ public class UserCardServiceImpl implements UserCardService {
                 .oldExpireAt(oldExpiry)
                 .newExpireAt(newExpiry)
                 .durationMonths(cardGroup.getTicketType().equalsIgnoreCase("MONTHLY") ? request.duration() : null)
-                .detail("Gia hạn thêm " + request.duration() + " " + (cardGroup.getTicketType().equalsIgnoreCase("MONTHLY") ? "tháng" : "ngày"))
+                .detail("Gia hạn thẻ, thêm " + request.duration() + (cardGroup.getTicketType().equalsIgnoreCase("MONTHLY") ? " tháng" : " ngày"))
                 .build();
         cardHistoryRepository.save(history);
 
-        return mapToResponse(card);
+        MonthlyCardResponse response = mapToResponse(card);
+        
+        try {
+            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
+                    .orderCode(payment.getPaymentId().longValue())
+                    .amount(payment.getAmount().longValue())
+                    .description("Gia han the " + card.getCardId())
+                    .returnUrl("http://localhost:5173/payment/success")
+                    .cancelUrl("http://localhost:5173/payment/cancel")
+                    .build();
+
+            CreatePaymentLinkResponse payOSResponse = payOS.paymentRequests().create(paymentData);
+            response.setCheckoutUrl(payOSResponse.getCheckoutUrl());
+            response.setQrCode(payOSResponse.getQrCode());
+            response.setOrderCode(payment.getPaymentId().longValue());
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi khi tạo link thanh toán PayOS: " + e.getMessage());
+        }
+
+        return response;
     }
 
     @Override

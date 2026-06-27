@@ -37,8 +37,7 @@ public class SecurityConfig {
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(customUserDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(customUserDetailsService);
 
         provider.setPasswordEncoder(passwordEncoder());
 
@@ -81,6 +80,7 @@ public class SecurityConfig {
 
                                 .requestMatchers(
                                         "/api/v1/auth/**",
+                                        "/api/v1/payments/payos-webhook",
                                         "/error"
                                 ).permitAll()
 
@@ -102,12 +102,7 @@ public class SecurityConfig {
         CorsConfiguration configuration =
                 new CorsConfiguration();
 
-        configuration.setAllowedOrigins(
-                List.of(
-                        "http://localhost:5173",
-                        "http://localhost:3000"
-                )
-        );
+        configuration.setAllowedOriginPatterns(List.of("*"));
 
         configuration.setAllowedMethods(
                 List.of(
@@ -120,12 +115,7 @@ public class SecurityConfig {
                 )
         );
 
-        configuration.setAllowedHeaders(
-                List.of(
-                        "Authorization",
-                        "Content-Type"
-                )
-        );
+        configuration.setAllowedHeaders(List.of("*"));
 
         configuration.setExposedHeaders(
                 List.of("Authorization")

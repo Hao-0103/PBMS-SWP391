@@ -14,7 +14,7 @@ import {
   Upload,
 } from "lucide-react";
 
-import FakeQR from "./FakeQR";
+import { QRCodeCanvas } from "qrcode.react";
 import { staffService } from "../../../services/staffService";
 
 interface VehicleEntryProps {
@@ -1128,7 +1128,7 @@ export default function VehicleEntry({ selectedFloorCode, selectedLaneCode }: Ve
             {!ticket && !isPreBooked && (
               <div className="flex flex-col items-center gap-2 py-2">
                 <div className="rounded border-2 border-dashed border-gray-200 p-2 opacity-30">
-                  <FakeQR value="DUMMY" size={100} />
+                  <QRCodeCanvas value="DUMMY" size={100} />
                 </div>
                 <span className="text-xs text-gray-400">
                   QR sẽ hiển thị sau khi tạo vé
@@ -1208,7 +1208,7 @@ export default function VehicleEntry({ selectedFloorCode, selectedLaneCode }: Ve
               {!isPreBooked && (
                 <>
                   <div className="rounded-lg border-4 border-blue-600 bg-white p-2 shadow-md">
-                    <FakeQR value={ticket.qrPayload} size={160} />
+                    <QRCodeCanvas value={ticket.qrPayload} size={160} />
                   </div>
                   <p className="text-[11px] font-medium text-blue-600">
                     Quét mã QR hoặc mã vé để kiểm tra khi ra

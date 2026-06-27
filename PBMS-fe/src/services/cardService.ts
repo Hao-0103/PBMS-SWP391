@@ -13,6 +13,9 @@ export interface MonthlyCardDto {
   tangGuiXe?: string;
   trangThai: "Hoạt động" | "Hết hạn" | "Sắp hết hạn";
   soNgayConLai: number;
+  checkoutUrl?: string;
+  qrCode?: string;
+  orderCode?: number;
 }
 
 export interface RegisterCardRequest {
@@ -110,6 +113,40 @@ export const cardService = {
     const result: ApiResponse<CardGroupDto[]> = await response.json();
     if (!response.ok) {
       throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
+    }
+    return result.data;
+  },
+
+  async cancelPayment(orderCode: number, reason?: string): Promise<void> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/payments/cancel/${orderCode}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ reason: reason || "Người dùng chủ động hủy trên giao diện" })
+    });
+
+    const result: ApiResponse<any> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Không thể hủy thanh toán.");
+    }
+  },
+
+  async checkPaymentStatus(orderCode: number): Promise<any> {
+    const token = authService.getToken();
+    const response = await fetch(`${API_URL}/payments/status/${orderCode}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      }
+    });
+
+    const result: ApiResponse<any> = await response.json();
+    if (!response.ok) {
+      throw new Error(result.message || "Lỗi kiểm tra trạng thái thanh toán.");
     }
     return result.data;
   }

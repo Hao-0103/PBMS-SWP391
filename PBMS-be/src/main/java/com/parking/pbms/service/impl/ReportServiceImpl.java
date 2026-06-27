@@ -3,6 +3,7 @@ package com.parking.pbms.service.impl;
 import com.parking.pbms.dto.VehicleReportResponse;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
+import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

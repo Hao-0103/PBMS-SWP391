@@ -4,8 +4,11 @@ import com.parking.pbms.model.CardHistory;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import java.util.List;
+import java.util.Optional;
 
 public interface CardHistoryRepository extends JpaRepository<CardHistory, Long> {
+
+    Optional<CardHistory> findByPaymentId(Long paymentId);
 
     @Query("SELECT ch, c.cardNo, cg.groupName, v.plateNo, cu.fullName, a.username " +
            "FROM CardHistory ch " +
