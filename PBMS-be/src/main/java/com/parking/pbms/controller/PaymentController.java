@@ -65,11 +65,10 @@ public class PaymentController {
 
         String responseCode = params.get("vnp_ResponseCode");
         if ("24".equals(responseCode)) {
-            // Ma 24 = Khach hang huy giao dich tren trang VNPay
             System.out.println("[vnpay-return] Nguoi dung HUY giao dich (code=24). Cap nhat DB CANCELLED.");
         }
 
-        // Goi handleVnPayIpn de verify chu ky va cap nhat DB:
+        // Verify chu ky va cap nhat DB:
         // - responseCode=00  -> PAID
         // - responseCode=24 hoac bat ky code loi khac -> CANCELLED
         try {
@@ -79,13 +78,21 @@ public class PaymentController {
             System.out.println("[vnpay-return] Loi khi xu ly IPN: " + e.getMessage());
         }
 
-        // Redirect nguoi dung ve Frontend kem theo toan bo params cua VNPay
+        // HEADER BYPASS NGROK WARNING:
+        // Khi dien thoai truy cap Ngrok URL, Ngrok se hien trang canh bao.
+        // Header nay bao Ngrok bo qua trang canh bao va tra ket qua thang.
+        response.setHeader("ngrok-skip-browser-warning", "true");
+        response.setHeader("Access-Control-Allow-Origin", "*");
+
+        // Redirect nguoi dung ve Frontend.
+        // Them ?ngrok-skip-browser-warning=true vao query de tuong thich voi moi phien ban Ngrok.
         String frontendUrl = "http://localhost:5173/payment/success";
         StringBuilder query = new StringBuilder();
+        query.append("ngrok-skip-browser-warning=true");
         for (java.util.Map.Entry<String, String> entry : params.entrySet()) {
-            if (query.length() > 0) query.append("&");
             try {
-                query.append(entry.getKey())
+                query.append("&")
+                     .append(entry.getKey())
                      .append("=")
                      .append(java.net.URLEncoder.encode(entry.getValue(), "UTF-8"));
             } catch (Exception ignored) {}
