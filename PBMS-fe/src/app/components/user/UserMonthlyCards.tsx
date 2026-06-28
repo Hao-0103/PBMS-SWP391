@@ -460,42 +460,39 @@ function DetailModal({ card, onClose }: { card: MonthlyCard; onClose: () => void
 
 /* ── Payment QR Modal ────────────────────────────────────────────── */
 function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { orderCode?: number; qrCode: string; checkoutUrl: string; onClose: () => void; onDone: () => void }) {
-  
+  const [isPaid, setIsPaid] = useState(false);
+
   useEffect(() => {
     if (!orderCode) return;
-    
-    // Bắt đầu polling kiểm tra trạng thái
+
+    // Polling kiem tra trang thai thanh toan moi 4 giay
     const interval = setInterval(async () => {
       try {
         const statusData = await cardService.checkPaymentStatus(orderCode);
         if (statusData && statusData.status === "PAID") {
           clearInterval(interval);
-          onDone(); // Thanh toán thành công, đóng modal và refresh
+          setIsPaid(true); // Chuyen sang UI thanh cong
         } else if (statusData && statusData.status === "CANCELLED") {
           clearInterval(interval);
-          onClose(); // Đã huỷ, đóng modal
+          onClose();
         }
       } catch (err) {
-        console.error("Lỗi polling trạng thái thanh toán", err);
+        console.error("Loi polling trang thai thanh toan", err);
       }
-    }, 5000); // Check mỗi 5s
+    }, 4000);
 
     return () => clearInterval(interval);
-  }, [orderCode, onDone, onClose]);
+  }, [orderCode, onClose]);
 
   const handleCancel = async () => {
-    if (!orderCode) {
-      onClose();
-      return;
-    }
-    
-    if (window.confirm("Bạn có chắc chắn muốn hủy thanh toán này không?")) {
+    if (!orderCode) { onClose(); return; }
+    if (window.confirm("Ban co chac chan muon huy thanh toan nay khong?")) {
       try {
-        await cardService.cancelPayment(orderCode, "Người dùng chủ động hủy trên giao diện");
-        alert("Giao dịch đã được hủy bỏ thành công trên hệ thống");
+        await cardService.cancelPayment(orderCode, "Nguoi dung chu dong huy tren giao dien");
+        alert("Giao dich da duoc huy bo thanh cong tren he thong");
         onClose();
       } catch (err: any) {
-        alert(err.message || "Lỗi khi hủy thanh toán");
+        alert(err.message || "Loi khi huy thanh toan");
       }
     }
   };
@@ -503,22 +500,66 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { o
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
       <div className="bg-white rounded-lg shadow-xl w-[400px] overflow-hidden text-center">
-        <div className="flex items-center justify-between px-5 py-3 bg-blue-600">
-          <span className="text-white text-sm font-semibold">Thanh toán mã QR PayOS</span>
-          <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
+        {/* Header */}
+        <div className={`flex items-center justify-between px-5 py-3 ${isPaid ? 'bg-emerald-600' : 'bg-blue-600'}`}>
+          <span className="text-white text-sm font-semibold">
+            {isPaid ? '✅ Thanh toán thành công!' : 'Thanh toán qua VNPay'}
+          </span>
+          {!isPaid && (
+            <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
+          )}
         </div>
+
+        {/* Body */}
         <div className="p-5 flex flex-col items-center gap-4">
-          <p className="text-sm text-gray-600">Quét mã QR dưới đây bằng ứng dụng ngân hàng hoặc ví điện tử để thanh toán</p>
-          <div className="p-2 border rounded-xl bg-white shadow-sm inline-block">
-            <QRCodeSVG value={qrCode} size={256} />
-          </div>
-          <a href={checkoutUrl} target="_blank" rel="noreferrer" className="text-sm text-blue-600 underline hover:text-blue-800">
-            Hoặc mở trang thanh toán PayOS
-          </a>
+          {isPaid ? (
+            <>
+              <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                <span className="text-3xl">✅</span>
+              </div>
+              <p className="text-sm text-emerald-700 font-medium">
+                Hệ thống đã xác nhận thanh toán. Thẻ của bạn đã được kích hoạt!
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600">Quét mã QR dưới đây bằng ứng dụng ngân hàng hoặc ví điện tử để thanh toán</p>
+              <div className="p-2 border rounded-xl bg-white shadow-sm inline-block">
+                <QRCodeSVG value={qrCode} size={256} />
+              </div>
+              <button
+                onClick={() => {
+                  // Danh dau la da redirect sang VNPay de khi quay lai khong hien QR modal
+                  const raw = localStorage.getItem('vnpay_session');
+                  if (raw) {
+                    try {
+                      const s = JSON.parse(raw);
+                      localStorage.setItem('vnpay_session', JSON.stringify({ ...s, wasRedirected: true }));
+                    } catch {}
+                  }
+                  window.location.href = checkoutUrl;
+                }}
+                className="text-sm text-blue-600 underline hover:text-blue-800 bg-transparent border-none cursor-pointer p-0"
+              >
+                Hoặc mở trang thanh toán VNPay
+              </button>
+            </>
+          )}
         </div>
+
+        {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
-          <button onClick={handleCancel} className="px-4 py-1.5 border border-red-300 text-red-600 text-sm rounded hover:bg-red-50 transition-colors">Hủy thanh toán</button>
-          <button onClick={onDone} className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors">Tôi đã thanh toán</button>
+          {!isPaid && (
+            <button onClick={handleCancel} className="px-4 py-1.5 border border-red-300 text-red-600 text-sm rounded hover:bg-red-50 transition-colors">Hủy thanh toán</button>
+          )}
+          <button
+            onClick={onDone}
+            className={`px-4 py-1.5 text-white text-sm rounded transition-colors ${
+              isPaid ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
+            }`}
+          >
+            {isPaid ? 'Hoàn tất ✓' : 'Tôi đã thanh toán'}
+          </button>
         </div>
       </div>
     </div>
@@ -536,6 +577,9 @@ export default function UserMonthlyCards() {
   const [renewCard, setRenewCard] = useState<MonthlyCard | null>(null);
   const [detailCard, setDetailCard] = useState<MonthlyCard | null>(null);
   const [paymentQr, setPaymentQr] = useState<{orderCode?: number, qrCode: string, checkoutUrl: string} | null>(null);
+  // Trang thai cho khi nguoi dung da redirect sang VNPay va quay ve: hien banner thay vi QR modal
+  const [pendingConfirmation, setPendingConfirmation] = useState<{ orderCode: number } | null>(null);
+  const [confirmationSuccess, setConfirmationSuccess] = useState(false);
 
   const fetchCards = async () => {
     setLoading(true);
@@ -554,8 +598,76 @@ export default function UserMonthlyCards() {
     }
   };
 
+  const SESSION_KEY = "vnpay_session";
+
+  // Polling ngam khi dang o trang thai pendingConfirmation (da redirect sang VNPay)
+  useEffect(() => {
+    if (!pendingConfirmation) return;
+
+    const MAX_POLLS = 20; // Toi da 20 lan x 4 giay = 80 giay
+    let pollCount = 0;
+
+    const interval = setInterval(async () => {
+      pollCount++;
+      try {
+        const statusData = await cardService.checkPaymentStatus(pendingConfirmation.orderCode);
+
+        if (statusData && statusData.status === 'PAID') {
+          // Thanh toan thanh cong
+          clearInterval(interval);
+          localStorage.removeItem(SESSION_KEY);
+          setPendingConfirmation(null);
+          setConfirmationSuccess(true);
+          fetchCards();
+          setTimeout(() => setConfirmationSuccess(false), 6000);
+
+        } else if (statusData && (statusData.status === 'CANCELLED' || statusData.status === 'FAILED')) {
+          // Giao dich bi huy hoac that bai -> dung ngay
+          clearInterval(interval);
+          localStorage.removeItem(SESSION_KEY);
+          setPendingConfirmation(null);
+          // Hien thong bao huy nhe nhang (khong alert, chi clear banner)
+
+        } else if (pollCount >= MAX_POLLS) {
+          // Het thoi gian cho (80 giay)
+          clearInterval(interval);
+          localStorage.removeItem(SESSION_KEY);
+          setPendingConfirmation(null);
+          alert('⚠️ Giao dịch đã hết thời gian chờ hoặc bị hủy bỏ!\nVui lòng kiểm tra lại trạng thái thẻ.');
+          fetchCards(); // Refresh de hien trang thai moi nhat
+        }
+      } catch (err) {
+        console.error('Loi polling pending confirmation', err);
+        pollCount++; // Van dem neu loi de khong bi loop vo han
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [pendingConfirmation]);
+
   useEffect(() => {
     fetchCards();
+
+    // Khoi phuc session khi trang tai lai
+    const savedSession = localStorage.getItem(SESSION_KEY);
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        if (session.expiresAt > Date.now()) {
+          if (session.wasRedirected) {
+            // Nguoi dung da redirect sang VNPay: KHONG hien QR modal, chi polling am thanh
+            setPendingConfirmation({ orderCode: session.orderCode });
+          } else {
+            // Lan dau hien QR (chua redirect)
+            setPaymentQr({ orderCode: session.orderCode, qrCode: session.qrCode, checkoutUrl: session.checkoutUrl });
+          }
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
   }, []);
 
   const handleAdd = async (data: NewMonthlyCard) => {
@@ -583,7 +695,14 @@ export default function UserMonthlyCards() {
         startDate: data.ngayDangKy,
       });
       if (newCard.qrCode && newCard.checkoutUrl) {
-        setPaymentQr({ orderCode: newCard.orderCode, qrCode: newCard.qrCode, checkoutUrl: newCard.checkoutUrl });
+        const sessionData = {
+          orderCode: newCard.orderCode,
+          qrCode: newCard.qrCode,
+          checkoutUrl: newCard.checkoutUrl,
+          expiresAt: Date.now() + 5 * 60 * 1000 // 5 phút
+        };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+        setPaymentQr(sessionData);
         setShowAdd(false);
       } else if (newCard.checkoutUrl) {
         window.location.href = newCard.checkoutUrl;
@@ -631,7 +750,14 @@ export default function UserMonthlyCards() {
         amount,
       });
       if (updatedCard.qrCode && updatedCard.checkoutUrl) {
-        setPaymentQr({ orderCode: updatedCard.orderCode, qrCode: updatedCard.qrCode, checkoutUrl: updatedCard.checkoutUrl });
+        const sessionData = {
+          orderCode: updatedCard.orderCode,
+          qrCode: updatedCard.qrCode,
+          checkoutUrl: updatedCard.checkoutUrl,
+          expiresAt: Date.now() + 5 * 60 * 1000 // 5 phút
+        };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
+        setPaymentQr(sessionData);
         setRenewCard(null);
       } else if (updatedCard.checkoutUrl) {
         window.location.href = updatedCard.checkoutUrl;
@@ -644,6 +770,42 @@ export default function UserMonthlyCards() {
     }
   };
 
+  const handleOpenAddModal = () => {
+    const savedSession = localStorage.getItem(SESSION_KEY);
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        if (session.expiresAt > Date.now()) {
+          setPaymentQr(session);
+          return;
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    setShowAdd(true);
+  };
+
+  const handleOpenRenewModal = (card: MonthlyCard) => {
+    const savedSession = localStorage.getItem(SESSION_KEY);
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        if (session.expiresAt > Date.now()) {
+          setPaymentQr(session);
+          return;
+        } else {
+          localStorage.removeItem(SESSION_KEY);
+        }
+      } catch (e) {
+        localStorage.removeItem(SESSION_KEY);
+      }
+    }
+    setRenewCard(card);
+  };
+
   const active = cards.filter(c => c.trangThai !== "Hết hạn").length;
   const expired = cards.filter(c => c.trangThai === "Hết hạn").length;
 
@@ -651,7 +813,7 @@ export default function UserMonthlyCards() {
     <div className="space-y-3">
       <div className="bg-white border border-gray-200 rounded shadow-sm px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2"><CreditCard className="w-4 h-4 text-blue-600" /><span className="text-sm font-semibold text-gray-700">Thẻ tháng của tôi</span></div>
-        <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 h-[34px] px-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors">
+        <button onClick={handleOpenAddModal} className="flex items-center gap-1.5 h-[34px] px-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors">
           <Plus className="w-3.5 h-3.5" />Đăng kí thẻ
         </button>
       </div>
@@ -664,6 +826,27 @@ export default function UserMonthlyCards() {
           </div>
         ))}
       </div>
+
+      {/* Banner: Dang cho xac nhan thanh toan (nguoi dung da redirect sang VNPay va quay ve) */}
+      {pendingConfirmation && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded px-4 py-3 text-sm text-blue-700">
+          <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" />
+          <span>
+            <strong>Đang chờ xác nhận thanh toán...</strong> Hệ thống sẽ tự động cập nhật khi VNPay xác nhận giao dịch.
+          </span>
+        </div>
+      )}
+
+      {/* Banner: Thanh toan thanh cong */}
+      {confirmationSuccess && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-300 rounded px-4 py-3 text-sm text-emerald-700">
+          <span className="text-xl flex-shrink-0">✅</span>
+          <span>
+            <strong>Thanh toán thành công!</strong> Thẻ của bạn đã được kích hoạt. Danh sách đã được cập nhật.
+          </span>
+          <button onClick={() => setConfirmationSuccess(false)} className="ml-auto text-emerald-500 hover:text-emerald-700 font-bold">✕</button>
+        </div>
+      )}
 
       <div className="space-y-3">
         {loading ? (
@@ -716,7 +899,10 @@ export default function UserMonthlyCards() {
               </div>
               <div className="px-4 py-2.5 border-t border-gray-100 flex gap-2">
                 <button onClick={() => setDetailCard(card)} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:border-blue-400 px-2.5 py-1 rounded transition-colors"><Eye className="w-3.5 h-3.5" />Xem chi tiết</button>
-                <button onClick={() => setRenewCard(card)} className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:border-emerald-400 px-2.5 py-1 rounded transition-colors"><RefreshCw className="w-3.5 h-3.5" />Gia hạn</button>
+                {/* Chi hien nut Gia han neu the da het han hoac sap het han */}
+                {(card.trangThai === 'Hết hạn' || card.trangThai === 'Sắp hết hạn') && (
+                  <button onClick={() => handleOpenRenewModal(card)} className="flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:border-emerald-400 px-2.5 py-1 rounded transition-colors"><RefreshCw className="w-3.5 h-3.5" />Gia hạn</button>
+                )}
               </div>
             </div>
           ))
@@ -730,8 +916,8 @@ export default function UserMonthlyCards() {
         orderCode={paymentQr.orderCode}
         qrCode={paymentQr.qrCode} 
         checkoutUrl={paymentQr.checkoutUrl} 
-        onClose={() => { setPaymentQr(null); fetchCards(); }} 
-        onDone={() => { setPaymentQr(null); fetchCards(); }} 
+        onClose={() => { setPaymentQr(null); }} 
+        onDone={() => { localStorage.removeItem(SESSION_KEY); setPaymentQr(null); fetchCards(); }} 
       />}
     </div>
   );

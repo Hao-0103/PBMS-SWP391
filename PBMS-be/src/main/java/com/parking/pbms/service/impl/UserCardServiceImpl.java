@@ -14,13 +14,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.Random;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.stream.Collectors;
 
-import vn.payos.PayOS;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import com.parking.pbms.config.VnPayConfig;
 
 @Service
 @RequiredArgsConstructor
@@ -34,7 +34,7 @@ public class UserCardServiceImpl implements UserCardService {
     private final FloorRepository floorRepository;
     private final PaymentRepository paymentRepository;
     private final CardHistoryRepository cardHistoryRepository;
-    private final PayOS payOS;
+    private final VnPayConfig vnPayConfig;
 
     private final Random random = new Random();
 
@@ -138,7 +138,7 @@ public class UserCardServiceImpl implements UserCardService {
                 .paymentType("CARD_REGISTRATION")
                 .amount(calculatedAmount)
                 .paymentMethod("VIETQR")
-                .gateway("PAYOS")
+                .gateway("VNPAY")
                 .referenceCode("REG-" + card.getCardId() + "-" + System.currentTimeMillis())
                 .status("PENDING")
                 .paidAt(null)
@@ -160,20 +160,19 @@ public class UserCardServiceImpl implements UserCardService {
         MonthlyCardResponse response = mapToResponse(card);
         
         try {
-            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
-                    .orderCode(payment.getPaymentId().longValue())
-                    .amount(payment.getAmount().longValue())
-                    .description("Dang ky the " + card.getCardId())
-                    .returnUrl("http://localhost:5173/payment/success")
-                    .cancelUrl("http://localhost:5173/payment/cancel")
-                    .build();
+            long amount = payment.getAmount().longValue();
+            String paymentUrl = vnPayConfig.createPaymentUrl(
+                    payment.getPaymentId().longValue(),
+                    amount,
+                    "Dang ky the " + card.getCardId(),
+                    "127.0.0.1"
+            );
 
-            CreatePaymentLinkResponse payOSResponse = payOS.paymentRequests().create(paymentData);
-            response.setCheckoutUrl(payOSResponse.getCheckoutUrl());
-            response.setQrCode(payOSResponse.getQrCode());
+            response.setCheckoutUrl(paymentUrl);
+            response.setQrCode(paymentUrl); // Dùng chính URL làm QR để hiển thị
             response.setOrderCode(payment.getPaymentId().longValue());
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi tạo link thanh toán PayOS: " + e.getMessage());
+            throw new RuntimeException("Lỗi khi tạo link thanh toán VNPay: " + e.getMessage());
         }
 
         return response;
@@ -215,7 +214,7 @@ public class UserCardServiceImpl implements UserCardService {
                 .paymentType("CARD_RENEWAL")
                 .amount(calculatedAmount)
                 .paymentMethod("VIETQR")
-                .gateway("PAYOS")
+                .gateway("VNPAY")
                 .referenceCode("REN-" + card.getCardId() + "-" + System.currentTimeMillis())
                 .status("PENDING")
                 .paidAt(null)
@@ -238,20 +237,19 @@ public class UserCardServiceImpl implements UserCardService {
         MonthlyCardResponse response = mapToResponse(card);
         
         try {
-            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
-                    .orderCode(payment.getPaymentId().longValue())
-                    .amount(payment.getAmount().longValue())
-                    .description("Gia han the " + card.getCardId())
-                    .returnUrl("http://localhost:5173/payment/success")
-                    .cancelUrl("http://localhost:5173/payment/cancel")
-                    .build();
+            long amount = payment.getAmount().longValue();
+            String paymentUrl = vnPayConfig.createPaymentUrl(
+                    payment.getPaymentId().longValue(),
+                    amount,
+                    "Gia han the " + card.getCardId(),
+                    "127.0.0.1"
+            );
 
-            CreatePaymentLinkResponse payOSResponse = payOS.paymentRequests().create(paymentData);
-            response.setCheckoutUrl(payOSResponse.getCheckoutUrl());
-            response.setQrCode(payOSResponse.getQrCode());
+            response.setCheckoutUrl(paymentUrl);
+            response.setQrCode(paymentUrl);
             response.setOrderCode(payment.getPaymentId().longValue());
         } catch (Exception e) {
-            throw new RuntimeException("Lỗi khi tạo link thanh toán PayOS: " + e.getMessage());
+            throw new RuntimeException("Lỗi khi tạo link thanh toán VNPay: " + e.getMessage());
         }
 
         return response;

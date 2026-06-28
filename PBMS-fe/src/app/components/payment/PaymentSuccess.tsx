@@ -1,27 +1,23 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, ArrowLeft, CreditCard } from "lucide-react";
 
-interface PayOSSuccessParams {
-  code?: string;
-  id?: string;
-  cancel?: string;
-  status?: string;
-  orderCode?: string;
+interface VnPaySuccessParams {
+  vnp_ResponseCode?: string;
+  vnp_TransactionNo?: string;
+  vnp_TxnRef?: string;
 }
 
-function parseQueryParams(): PayOSSuccessParams {
+function parseQueryParams(): VnPaySuccessParams {
   const params = new URLSearchParams(window.location.search);
   return {
-    code:      params.get("code")      ?? undefined,
-    id:        params.get("id")        ?? undefined,
-    cancel:    params.get("cancel")    ?? undefined,
-    status:    params.get("status")    ?? undefined,
-    orderCode: params.get("orderCode") ?? undefined,
+    vnp_ResponseCode:  params.get("vnp_ResponseCode")  ?? undefined,
+    vnp_TransactionNo: params.get("vnp_TransactionNo") ?? undefined,
+    vnp_TxnRef:        params.get("vnp_TxnRef")        ?? undefined,
   };
 }
 
 export default function PaymentSuccess() {
-  const [params, setParams] = useState<PayOSSuccessParams>({});
+  const [params, setParams] = useState<VnPaySuccessParams>({});
   const [countdown, setCountdown] = useState(5);
 
   useEffect(() => {
@@ -38,7 +34,7 @@ export default function PaymentSuccess() {
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const isConfirmed = params.code === "00" || params.status === "PAID";
+  const isConfirmed = params.vnp_ResponseCode === "00";
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 to-blue-50 p-4">
@@ -62,22 +58,22 @@ export default function PaymentSuccess() {
         <div className="p-6 space-y-4">
           {/* Transaction info */}
           <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 space-y-2 text-sm">
-            {params.orderCode && (
+            {params.vnp_TxnRef && (
               <div className="flex justify-between">
                 <span className="text-gray-500">Mã đơn hàng</span>
-                <span className="font-mono font-semibold text-gray-800">{params.orderCode}</span>
+                <span className="font-mono font-semibold text-gray-800">{params.vnp_TxnRef}</span>
               </div>
             )}
-            {params.id && (
+            {params.vnp_TransactionNo && (
               <div className="flex justify-between">
-                <span className="text-gray-500">Mã giao dịch PayOS</span>
-                <span className="font-mono text-xs text-gray-700 truncate max-w-[180px]">{params.id}</span>
+                <span className="text-gray-500">Mã giao dịch VNPay</span>
+                <span className="font-mono text-xs text-gray-700 truncate max-w-[180px]">{params.vnp_TransactionNo}</span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-gray-500">Trạng thái</span>
               <span className={`font-semibold ${isConfirmed ? "text-emerald-600" : "text-amber-600"}`}>
-                {isConfirmed ? "✓ Thành công" : params.status ?? "Đang xử lý"}
+                {isConfirmed ? "✓ Thành công" : "Thất bại / Hủy"}
               </span>
             </div>
           </div>

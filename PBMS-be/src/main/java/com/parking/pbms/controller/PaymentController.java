@@ -8,18 +8,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import com.parking.pbms.dto.CreatePayOSLinkRequest;
-import vn.payos.PayOS;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
-
 @RestController
 @RequestMapping("/api/v1/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
     private final PaymentService paymentService;
-    private final PayOS payOS;
 
     @PostMapping("/create")
     public ResponseEntity<ApiResponse<PaymentResponse>> createPayment(@RequestBody PaymentRequest request) {
@@ -31,35 +25,6 @@ public class PaymentController {
                         response
                 )
         );
-    }
-
-    @PostMapping("/create-link")
-    public ResponseEntity<ApiResponse<Object>> createPaymentLink(@RequestBody CreatePayOSLinkRequest request) {
-        try {
-            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
-                    .orderCode(request.getOrderCode())
-                    .amount(request.getAmount() != null ? request.getAmount().longValue() : 0L)
-                    .description(request.getDescription())
-                    .returnUrl(request.getReturnUrl())
-                    .cancelUrl(request.getCancelUrl())
-                    .build();
-
-            CreatePaymentLinkResponse data = payOS.paymentRequests().create(paymentData);
-
-            return ResponseEntity.ok(
-                    ApiResponse.success(
-                            200,
-                            "Tạo link thanh toán thành công",
-                            data
-                    )
-            );
-        } catch (Exception e) {
-            e.printStackTrace();
-            // ĐÃ SỬA CHUẨN: Sử dụng constructor mới của ApiResponse thay vì dùng hàm error() không tồn tại
-            return ResponseEntity.badRequest().body(
-                    new ApiResponse<>(400, "Lỗi tạo link thanh toán: " + e.getMessage(), null)
-            );
-        }
     }
 
     @GetMapping("/check-status/{ticketId}")
@@ -74,23 +39,58 @@ public class PaymentController {
         );
     }
 
-    @PostMapping("/payos-webhook")
-    public ResponseEntity<java.util.Map<String, Object>> payosWebhook(@RequestBody java.util.Map<String, Object> payload) {
-        System.out.println("PayOS Webhook Received: " + payload);
-        java.util.Map<String, Object> response = new java.util.HashMap<>();
+    @GetMapping("/vnpay-ipn")
+    public ResponseEntity<java.util.Map<String, String>> vnpayIpn(
+            @RequestParam java.util.Map<String, String> params) {
+        System.out.println("VNPay IPN Received: " + params);
         try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.valueToTree(payload);
-            paymentService.handlePayosWebhook(jsonNode);
-            
-            response.put("success", true);
-            return ResponseEntity.ok(response);
+            java.util.Map<String, String> result = paymentService.handleVnPayIpn(params);
+            return ResponseEntity.ok(result);
         } catch (Exception e) {
             e.printStackTrace();
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
+            java.util.Map<String, String> error = new java.util.HashMap<>();
+            error.put("RspCode", "99");
+            error.put("Message", "Unknown error");
+            return ResponseEntity.ok(error);
         }
+    }
+
+    @GetMapping("/vnpay-return")
+    public void vnpayReturn(
+            @RequestParam java.util.Map<String, String> params,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+
+        System.out.println("===== VNPay Return Received =====");
+        System.out.println("Params: " + params);
+
+        String responseCode = params.get("vnp_ResponseCode");
+        if ("24".equals(responseCode)) {
+            // Ma 24 = Khach hang huy giao dich tren trang VNPay
+            System.out.println("[vnpay-return] Nguoi dung HUY giao dich (code=24). Cap nhat DB CANCELLED.");
+        }
+
+        // Goi handleVnPayIpn de verify chu ky va cap nhat DB:
+        // - responseCode=00  -> PAID
+        // - responseCode=24 hoac bat ky code loi khac -> CANCELLED
+        try {
+            java.util.Map<String, String> ipnResult = paymentService.handleVnPayIpn(new java.util.HashMap<>(params));
+            System.out.println("[vnpay-return] IPN Result: " + ipnResult);
+        } catch (Exception e) {
+            System.out.println("[vnpay-return] Loi khi xu ly IPN: " + e.getMessage());
+        }
+
+        // Redirect nguoi dung ve Frontend kem theo toan bo params cua VNPay
+        String frontendUrl = "http://localhost:5173/payment/success";
+        StringBuilder query = new StringBuilder();
+        for (java.util.Map.Entry<String, String> entry : params.entrySet()) {
+            if (query.length() > 0) query.append("&");
+            try {
+                query.append(entry.getKey())
+                     .append("=")
+                     .append(java.net.URLEncoder.encode(entry.getValue(), "UTF-8"));
+            } catch (Exception ignored) {}
+        }
+        response.sendRedirect(frontendUrl + "?" + query.toString());
     }
 
     @GetMapping("/status/{orderCode}")

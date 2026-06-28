@@ -3,7 +3,7 @@ package com.parking.pbms.dto;
 import lombok.Data;
 
 @Data
-public class CreatePayOSLinkRequest {
+public class CreateVnPayLinkRequest {
     private Long orderCode;
     private Integer amount;
     private String description;

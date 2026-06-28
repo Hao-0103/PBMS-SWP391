@@ -80,7 +80,8 @@ public class SecurityConfig {
 
                                 .requestMatchers(
                                         "/api/v1/auth/**",
-                                        "/api/v1/payments/payos-webhook",
+                                        "/api/v1/payments/vnpay-ipn",
+                                        "/api/v1/payments/vnpay-return",
                                         "/error"
                                 ).permitAll()
 

@@ -11,18 +11,18 @@ import com.parking.pbms.repository.CardHistoryRepository;
 import com.parking.pbms.repository.ParkingTicketRepository;
 import com.parking.pbms.repository.PaymentRepository;
 import com.parking.pbms.service.PaymentService;
+import com.parking.pbms.config.VnPayConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import vn.payos.PayOS;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
-import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
-import vn.payos.model.v2.paymentRequests.PaymentLinkItem;
-import java.util.Collections;
 
 import java.math.BigDecimal;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +33,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final ParkingTicketRepository ticketRepository;
     private final CardRepository cardRepository;
     private final CardHistoryRepository cardHistoryRepository;
-    private final PayOS payOS;
+    private final VnPayConfig vnPayConfig;
 
     @Override
     @Transactional
@@ -45,7 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal penalty = ticket.getPenaltyAmount() != null ? ticket.getPenaltyAmount() : BigDecimal.ZERO;
         BigDecimal totalAmount = fee.add(penalty);
 
-        String description = "Thanh toan ve xe " + ticket.getTicketId();
+        String description = "ThanhToanVeXe_" + ticket.getTicketId();
 
         // 1. Lưu trạng thái PENDING vào Database trước
         Payment payment = Payment.builder()
@@ -63,24 +63,14 @@ public class PaymentServiceImpl implements PaymentService {
         long orderCode = payment.getPaymentId().longValue();
 
         try {
-            // 2. Tạo data để gửi sang PayOS
-            PaymentLinkItem item = PaymentLinkItem.builder()
-                    .name("Vé xe " + ticket.getTicketId())
-                    .price(totalAmount.longValue())
-                    .quantity(1)
-                    .build();
-
-            CreatePaymentLinkRequest paymentData = CreatePaymentLinkRequest.builder()
-                    .orderCode(orderCode)
-                    .amount(totalAmount.longValue())
-                    .description("Thanh toan ve " + ticket.getTicketId())
-                    .returnUrl("http://localhost:5173/success") // Thay bằng link Frontend của bạn
-                    .cancelUrl("http://localhost:5173/cancel") // Thay bằng link Frontend của bạn
-                    .items(Collections.singletonList(item))
-                    .build();
-
-            // 4. Gọi API của PayOS
-            CreatePaymentLinkResponse data = payOS.paymentRequests().create(paymentData);
+            // 2. Tạo URL VNPay
+            long amount = totalAmount.longValue();
+            String paymentUrl = vnPayConfig.createPaymentUrl(
+                    orderCode,
+                    amount,
+                    "ThanhToanVeXe_" + ticket.getTicketId(),
+                    "127.0.0.1"
+            );
 
             // 5. Trả kết quả về cho Frontend
             return PaymentResponse.builder()
@@ -89,12 +79,12 @@ public class PaymentServiceImpl implements PaymentService {
                     .amount(payment.getAmount())
                     .description(payment.getReferenceCode())
                     .status(payment.getStatus())
-                    .checkoutUrl(data.getCheckoutUrl()) // 💡 Lấy link xịn từ PayOS
+                    .checkoutUrl(paymentUrl) // 💡 Lấy link xịn từ VNPay
                     .build();
 
         } catch (Exception e) {
-            log.error("Lỗi khi tạo payment link trên PayOS", e);
-            throw new RuntimeException("Không thể tạo giao dịch PayOS");
+            log.error("Lỗi khi tạo payment link trên VNPay", e);
+            throw new RuntimeException("Không thể tạo giao dịch VNPay");
         }
     }
 
@@ -113,61 +103,114 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public void handlePayosWebhook(com.fasterxml.jackson.databind.JsonNode payload) {
-        String code = payload.path("code").asText();
-        if (!"00".equals(code)) {
-            log.info("Ignored PayOS webhook with code: " + code);
-            return;
-        }
+    public java.util.Map<String, String> handleVnPayIpn(java.util.Map<String, String> params) {
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        try {
+            // Lay va xoa vnp_SecureHash ra khoi map truoc khi build chuoi hash
+            String vnp_SecureHash = params.get("vnp_SecureHash");
+            params.remove("vnp_SecureHashType");
+            params.remove("vnp_SecureHash");
 
-        com.fasterxml.jackson.databind.JsonNode data = payload.path("data");
-        if (data == null || data.isMissingNode()) {
-            return;
-        }
+            // Sort theo alphabet (dung TreeMap de dam bao dung thu tu)
+            Map<String, String> sortedParams = new TreeMap<>(params);
 
-        long orderCode = data.path("orderCode").asLong();
-        Payment payment = paymentRepository.findById(orderCode)
-                .orElse(null);
-
-        if (payment == null) {
-            log.warn("Webhook received for unknown orderCode: " + orderCode);
-            return;
-        }
-
-        // If already paid, ignore
-        if ("PAID".equalsIgnoreCase(payment.getStatus())) {
-            return;
-        }
-
-        // Update Payment status
-        payment.setStatus("PAID");
-        payment.setPaidAt(LocalDateTime.now());
-        paymentRepository.save(payment);
-
-        // Update related entities based on PaymentType
-        if ("CARD_REGISTRATION".equalsIgnoreCase(payment.getPaymentType())) {
-            Card card = cardRepository.findById(payment.getCardId()).orElse(null);
-            if (card != null) {
-                card.setStatus("ACTIVE");
-                cardRepository.save(card);
-            }
-        } else if ("CARD_RENEWAL".equalsIgnoreCase(payment.getPaymentType())) {
-            Card card = cardRepository.findById(payment.getCardId()).orElse(null);
-            if (card != null) {
-                // Find CardHistory to apply the new ExpiryDate
-                CardHistory history = cardHistoryRepository.findByPaymentId(payment.getPaymentId()).orElse(null);
-                if (history != null && history.getNewExpireAt() != null) {
-                    card.setExpireAt(history.getNewExpireAt());
+            // Build chuoi hashData GIONG HET voi luc tao URL trong VnPayConfig:
+            // - fieldName: giu nguyen (KHONG encode)
+            // - fieldValue: URLEncoder.encode(..., US_ASCII) - giu dau +, KHONG replace %20
+            // - Dung boolean first de noi &, KHONG dung itr.hasNext() de tranh bug trailing &
+            StringBuilder hashData = new StringBuilder();
+            boolean first = true;
+            for (Map.Entry<String, String> entry : sortedParams.entrySet()) {
+                String fieldName  = entry.getKey();
+                String fieldValue = entry.getValue();
+                if (fieldValue != null && !fieldValue.isEmpty()) {
+                    if (!first) hashData.append('&');
+                    hashData.append(fieldName)
+                            .append('=')
+                            .append(URLEncoder.encode(fieldValue, StandardCharsets.US_ASCII.toString()));
+                    first = false;
                 }
-                card.setStatus("ACTIVE");
-                cardRepository.save(card);
             }
-        } else if ("PARKING_FEE".equalsIgnoreCase(payment.getPaymentType())) {
-            ParkingTicket ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
-            if (ticket != null) {
-                ticket.setStatus("PAID");
-                ticketRepository.save(ticket);
+
+            String hashDataStr = hashData.toString();
+            String signValue   = VnPayConfig.hmacSHA512(vnPayConfig.getVnpHashSecret(), hashDataStr);
+
+            System.out.println("[IPN] HashSecret  : " + vnPayConfig.getVnpHashSecret());
+            System.out.println("[IPN] Hash Data   : " + hashDataStr);
+            System.out.println("[IPN] Computed    : " + signValue);
+            System.out.println("[IPN] From VNPay  : " + vnp_SecureHash);
+            System.out.println("[IPN] Match?      : " + signValue.equals(vnp_SecureHash));
+
+            if (!signValue.equals(vnp_SecureHash)) {
+                response.put("RspCode", "97");
+                response.put("Message", "Invalid Checksum");
+                return response;
             }
+
+            long orderCode = Long.parseLong(params.get("vnp_TxnRef"));
+            Payment payment = paymentRepository.findById(orderCode).orElse(null);
+
+            if (payment == null) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not found");
+                return response;
+            }
+
+            long amount = Long.parseLong(params.get("vnp_Amount")) / 100;
+            if (payment.getAmount().longValue() != amount) {
+                response.put("RspCode", "04");
+                response.put("Message", "Invalid amount");
+                return response;
+            }
+
+            if ("PAID".equalsIgnoreCase(payment.getStatus())) {
+                response.put("RspCode", "02");
+                response.put("Message", "Order already confirmed");
+                return response;
+            }
+
+            String responseCode = params.get("vnp_ResponseCode");
+            if ("00".equals(responseCode)) {
+                payment.setStatus("PAID");
+                payment.setPaidAt(LocalDateTime.now());
+                paymentRepository.save(payment);
+
+                if ("CARD_REGISTRATION".equalsIgnoreCase(payment.getPaymentType())) {
+                    Card card = cardRepository.findById(payment.getCardId()).orElse(null);
+                    if (card != null) {
+                        card.setStatus("ACTIVE");
+                        cardRepository.save(card);
+                    }
+                } else if ("CARD_RENEWAL".equalsIgnoreCase(payment.getPaymentType())) {
+                    Card card = cardRepository.findById(payment.getCardId()).orElse(null);
+                    if (card != null) {
+                        CardHistory history = cardHistoryRepository.findByPaymentId(payment.getPaymentId()).orElse(null);
+                        if (history != null && history.getNewExpireAt() != null) {
+                            card.setExpireAt(history.getNewExpireAt());
+                        }
+                        card.setStatus("ACTIVE");
+                        cardRepository.save(card);
+                    }
+                } else if ("PARKING_FEE".equalsIgnoreCase(payment.getPaymentType())) {
+                    ParkingTicket ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
+                    if (ticket != null) {
+                        ticket.setStatus("PAID");
+                        ticketRepository.save(ticket);
+                    }
+                }
+            } else {
+                payment.setStatus("CANCELLED");
+                paymentRepository.save(payment);
+            }
+
+            response.put("RspCode", "00");
+            response.put("Message", "Confirm Success");
+            return response;
+        } catch (Exception e) {
+            log.error("Lỗi khi xử lý IPN từ VNPay", e);
+            response.put("RspCode", "99");
+            response.put("Message", "Unknown error");
+            return response;
         }
     }
 
@@ -195,12 +238,10 @@ public class PaymentServiceImpl implements PaymentService {
             throw new RuntimeException("Chỉ có thể hủy giao dịch đang chờ thanh toán");
         }
 
-        try {
-            payOS.paymentRequests().cancel(orderCode, reason);
-        } catch (Exception e) {
-            log.error("Lỗi khi hủy giao dịch trên PayOS (orderCode={}): {}", orderCode, e.getMessage());
-            // Nếu PayOS lỗi, cứ tiếp tục hủy dưới DB để tránh treo đơn
-        }
+        // Bỏ logic gọi huỷ sang cổng thanh toán vì VNPay không có API huỷ trực tiếp như các hệ thống cũ
+        // Thường giao dịch VNPay chưa thanh toán sẽ tự hết hạn (vnp_ExpireDate)
+        // Nên chỉ cần update ở Database là đủ
+
 
         payment.setStatus("CANCELLED");
         paymentRepository.save(payment);
