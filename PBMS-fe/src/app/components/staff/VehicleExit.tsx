@@ -1105,7 +1105,7 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                     className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
                   >
                     <QrCode className="h-4 w-4" />
-                    Thanh toán QR (VietQR)
+                    Thanh toán
                   </button>
                 ) : (
                   <button

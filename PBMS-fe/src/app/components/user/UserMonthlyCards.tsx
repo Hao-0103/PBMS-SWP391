@@ -8,6 +8,8 @@ const VQR_BANK_BIN    = "970432";
 const VQR_ACCOUNT_NO  = "2323042004";
 const VQR_TEMPLATE_ID = "btat8lf";
 
+const SESSION_KEY = "vnpay_session";
+
 function buildVietQrUrl(amount: number, description: string): string {
   return (
     `https://api.vietqr.io/image/${VQR_BANK_BIN}-${VQR_ACCOUNT_NO}-${VQR_TEMPLATE_ID}.jpg` +
@@ -448,7 +450,7 @@ function DetailModal({ card, onClose }: { card: MonthlyCard; onClose: () => void
 }
 
 /* ── Payment QR Modal ────────────────────────────────────────────── */
-function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { orderCode?: number; qrCode: string; checkoutUrl: string; onClose: () => void; onDone: () => void }) {
+function PaymentQrModal({ orderCode, qrCode, checkoutUrl, paymentType = 'registration', onClose, onDone }: { orderCode?: number; qrCode: string; checkoutUrl: string; paymentType?: 'registration' | 'renewal'; onClose: () => void; onDone: () => void }) {
   const [isPaid, setIsPaid] = useState(false);
 
   useEffect(() => {
@@ -478,6 +480,8 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { o
     if (window.confirm("Ban co chac chan muon huy thanh toan nay khong?")) {
       try {
         await cardService.cancelPayment(orderCode, "Nguoi dung chu dong huy tren giao dien");
+        // Xoa session khoi localStorage de QR khong tu dong hien lai khi F5
+        localStorage.removeItem(SESSION_KEY);
         alert("Giao dich da duoc huy bo thanh cong tren he thong");
         onClose();
       } catch (err: any) {
@@ -507,7 +511,9 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { o
                 <span className="text-3xl">✅</span>
               </div>
               <p className="text-sm text-emerald-700 font-medium">
-                Hệ thống đã xác nhận thanh toán. Thẻ của bạn đã được kích hoạt!
+                {paymentType === 'renewal'
+                  ? 'Hệ thống đã xác nhận thanh toán. Thẻ của bạn đã được gia hạn thành công!'
+                  : 'Hệ thống đã xác nhận thanh toán. Thẻ của bạn đã được kích hoạt!'}
               </p>
             </>
           ) : (
@@ -562,14 +568,14 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, onClose, onDone }: { o
               </button>
             </>
           )}
-          <button
-            onClick={onDone}
-            className={`px-4 py-1.5 text-white text-sm rounded transition-colors ${
-              isPaid ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'
-            }`}
-          >
-            {isPaid ? 'Hoàn tất ✓' : 'Tôi đã thanh toán'}
-          </button>
+          {isPaid && (
+            <button
+              onClick={onDone}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded transition-colors"
+            >
+              Hoàn tất ✓
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -586,7 +592,7 @@ export default function UserMonthlyCards() {
   const [showAdd, setShowAdd] = useState(false);
   const [renewCard, setRenewCard] = useState<MonthlyCard | null>(null);
   const [detailCard, setDetailCard] = useState<MonthlyCard | null>(null);
-  const [paymentQr, setPaymentQr] = useState<{orderCode?: number, qrCode: string, checkoutUrl: string} | null>(null);
+  const [paymentQr, setPaymentQr] = useState<{orderCode?: number, qrCode: string, checkoutUrl: string, paymentType?: 'registration' | 'renewal'} | null>(null);
   // Trang thai cho khi nguoi dung da redirect sang VNPay va quay ve: hien banner thay vi QR modal
   const [pendingConfirmation, setPendingConfirmation] = useState<{ orderCode: number } | null>(null);
   const [confirmationSuccess, setConfirmationSuccess] = useState(false);
@@ -607,8 +613,6 @@ export default function UserMonthlyCards() {
       setLoading(false);
     }
   };
-
-  const SESSION_KEY = "vnpay_session";
 
   // Polling ngam khi dang o trang thai pendingConfirmation (da redirect sang VNPay)
   useEffect(() => {
@@ -659,18 +663,21 @@ export default function UserMonthlyCards() {
     fetchCards();
 
     // Khoi phuc session khi trang tai lai
+    // CHU Y: Chi tu dong phuc hoi trang thai 'pendingConfirmation' (da redirect sang VNPay).
+    // KHONG tu dong hien QR modal khi session.wasRedirected=false --
+    // nguoi dung phai chu dong bam nut "Dang ky" hoac "Gia han" de hien QR.
     const savedSession = localStorage.getItem(SESSION_KEY);
     if (savedSession) {
       try {
         const session = JSON.parse(savedSession);
         if (session.expiresAt > Date.now()) {
           if (session.wasRedirected) {
-            // Nguoi dung da redirect sang VNPay: KHONG hien QR modal, chi polling am thanh
+            // Nguoi dung da redirect sang VNPay: chi polling am thanh, khong hien QR
             setPendingConfirmation({ orderCode: session.orderCode });
-          } else {
-            // Lan dau hien QR (chua redirect)
-            setPaymentQr({ orderCode: session.orderCode, qrCode: session.qrCode, checkoutUrl: session.checkoutUrl });
           }
+          // Neu chua redirect (wasRedirected=false): KHONG tu dong bat QR modal.
+          // Nguoi dung bam nut "Dang ky"/"Gia han" thi handleOpenAddModal/handleOpenRenewModal
+          // se tu phuc hoi session va hien QR.
         } else {
           localStorage.removeItem(SESSION_KEY);
         }
@@ -709,7 +716,8 @@ export default function UserMonthlyCards() {
           orderCode: newCard.orderCode,
           qrCode: newCard.qrCode,
           checkoutUrl: newCard.checkoutUrl,
-          expiresAt: Date.now() + 5 * 60 * 1000 // 5 phút
+          expiresAt: Date.now() + 5 * 60 * 1000, // 5 phút
+          paymentType: 'registration' as const,
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
         setPaymentQr(sessionData);
@@ -764,7 +772,8 @@ export default function UserMonthlyCards() {
           orderCode: updatedCard.orderCode,
           qrCode: updatedCard.qrCode,
           checkoutUrl: updatedCard.checkoutUrl,
-          expiresAt: Date.now() + 5 * 60 * 1000 // 5 phút
+          expiresAt: Date.now() + 5 * 60 * 1000, // 5 phút
+          paymentType: 'renewal' as const,
         };
         localStorage.setItem(SESSION_KEY, JSON.stringify(sessionData));
         setPaymentQr(sessionData);
@@ -925,7 +934,8 @@ export default function UserMonthlyCards() {
       {paymentQr && <PaymentQrModal 
         orderCode={paymentQr.orderCode}
         qrCode={paymentQr.qrCode} 
-        checkoutUrl={paymentQr.checkoutUrl} 
+        checkoutUrl={paymentQr.checkoutUrl}
+        paymentType={paymentQr.paymentType}
         onClose={() => { setPaymentQr(null); }} 
         onDone={() => { localStorage.removeItem(SESSION_KEY); setPaymentQr(null); fetchCards(); }} 
       />}

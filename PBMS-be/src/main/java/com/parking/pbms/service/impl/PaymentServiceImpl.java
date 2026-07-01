@@ -204,7 +204,7 @@ public class PaymentServiceImpl implements PaymentService {
                 return response;
             }
 
-            if ("PAID".equalsIgnoreCase(payment.getStatus())) {
+            if ("PAID".equalsIgnoreCase(payment.getStatus()) || "CANCELLED".equalsIgnoreCase(payment.getStatus())) {
                 response.put("RspCode", "02");
                 response.put("Message", "Order already confirmed");
                 return response;

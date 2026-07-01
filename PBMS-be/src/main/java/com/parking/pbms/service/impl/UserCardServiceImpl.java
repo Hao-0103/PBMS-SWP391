@@ -161,10 +161,11 @@ public class UserCardServiceImpl implements UserCardService {
         
         try {
             long amount = payment.getAmount().longValue();
+            String cardNoForDesc = card.getCardNo() != null ? card.getCardNo() : String.format("CARD%06d", card.getCardId());
             String paymentUrl = vnPayConfig.createPaymentUrl(
                     payment.getPaymentId().longValue(),
                     amount,
-                    "Dang ky the " + card.getCardId(),
+                    "Dang ky the " + cardNoForDesc,
                     "127.0.0.1"
             );
 
@@ -238,10 +239,11 @@ public class UserCardServiceImpl implements UserCardService {
         
         try {
             long amount = payment.getAmount().longValue();
+            String cardNoForDesc = card.getCardNo() != null ? card.getCardNo() : String.format("CARD%06d", card.getCardId());
             String paymentUrl = vnPayConfig.createPaymentUrl(
                     payment.getPaymentId().longValue(),
                     amount,
-                    "Gia han the " + card.getCardId(),
+                    "Gia han the thang " + cardNoForDesc,
                     "127.0.0.1"
             );
 
@@ -265,14 +267,21 @@ public class UserCardServiceImpl implements UserCardService {
 
     private java.math.BigDecimal calculateAmount(CardGroup cardGroup, int duration) {
         java.math.BigDecimal basePrice = cardGroup.getBasePrice();
+        java.math.BigDecimal result;
         if (cardGroup.getTicketType().equalsIgnoreCase("MONTHLY")) {
             if (duration == 3) {
-                return basePrice.multiply(java.math.BigDecimal.valueOf(2.8)).setScale(0, java.math.RoundingMode.HALF_UP);
+                result = basePrice.multiply(java.math.BigDecimal.valueOf(2.8)).setScale(0, java.math.RoundingMode.HALF_UP);
             } else if (duration == 6) {
-                return basePrice.multiply(java.math.BigDecimal.valueOf(5.4)).setScale(0, java.math.RoundingMode.HALF_UP);
+                result = basePrice.multiply(java.math.BigDecimal.valueOf(5.4)).setScale(0, java.math.RoundingMode.HALF_UP);
+            } else {
+                result = basePrice.multiply(java.math.BigDecimal.valueOf(duration));
             }
+        } else {
+            result = basePrice.multiply(java.math.BigDecimal.valueOf(duration));
         }
-        return basePrice.multiply(java.math.BigDecimal.valueOf(duration));
+        // Enforce VNPay minimum: 10,000 VND
+        java.math.BigDecimal minimum = java.math.BigDecimal.valueOf(10000);
+        return result.compareTo(minimum) < 0 ? minimum : result;
     }
 
     private MonthlyCardResponse mapToResponse(Card card) {
