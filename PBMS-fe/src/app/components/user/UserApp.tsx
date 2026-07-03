@@ -3,6 +3,7 @@ import UserLayout, { UserScreen } from "./UserLayout";
 import UserDashboard from "./UserDashboard";
 import UserMonthlyCards from "./UserMonthlyCards";
 import UserSupport from "./UserSupport";
+import UserRegulations from "./UserRegulations";
 
 interface UserAppProps {
   userName: string;
@@ -17,6 +18,8 @@ function renderScreen(screen: UserScreen, userName: string) {
     case "monthly-cards":
       return <UserMonthlyCards />;
 
+    case "regulations":
+      return <UserRegulations />;
 
     case "support":
       return <UserSupport />;
