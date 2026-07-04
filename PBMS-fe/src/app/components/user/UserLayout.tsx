@@ -13,11 +13,13 @@ import {
   AlertTriangle,
   LifeBuoy,
   ShoppingCart,
+  BookOpen,
 } from "lucide-react";
 
 export type UserScreen =
   | "dashboard"
   | "monthly-cards"
+  | "regulations"
   | "support";
 
 interface UserLayoutProps {
@@ -44,6 +46,11 @@ const navItems: {
     icon: CreditCard,
   },
   {
+    screen: "regulations",
+    label: "Quy định",
+    icon: BookOpen,
+  },
+  {
     screen: "support",
     label: "Hỗ trợ",
     icon: LifeBuoy,
@@ -53,6 +60,7 @@ const navItems: {
 const breadcrumbMap: Record<UserScreen, string> = {
   dashboard: "Hồ sơ của tôi",
   "monthly-cards": "Thẻ của tôi",
+  regulations: "Quy định",
   support: "Hỗ trợ",
 };
 
