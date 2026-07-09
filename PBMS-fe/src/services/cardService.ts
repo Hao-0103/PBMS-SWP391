@@ -1,5 +1,5 @@
-import { authService, ApiResponse } from "./authService";
-import { safeJson } from "../utils/apiHelper";
+import { ApiResponse } from "./authService";
+import { authFetch, safeJson } from "../utils/apiHelper";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5173/api/v1";
 
@@ -49,122 +49,60 @@ export interface CardGroupDto {
 
 export const cardService = {
   async getMyCards(): Promise<MonthlyCardDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/user/monthly-cards`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/user/monthly-cards`);
     const result: ApiResponse<MonthlyCardDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách thẻ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách thẻ.");
     return result.data;
   },
 
   async registerCard(payload: RegisterCardRequest): Promise<MonthlyCardDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/user/monthly-cards`, {
+    const response = await authFetch(`${API_URL}/user/monthly-cards`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<MonthlyCardDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Đăng ký thẻ thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Đăng ký thẻ thất bại.");
     return result.data;
   },
 
   async renewCard(payload: RenewCardRequest): Promise<MonthlyCardDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/user/monthly-cards/renew`, {
+    const response = await authFetch(`${API_URL}/user/monthly-cards/renew`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<MonthlyCardDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Gia hạn thẻ thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Gia hạn thẻ thất bại.");
     return result.data;
   },
 
   async getActiveCardGroups(): Promise<CardGroupDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/user/monthly-cards/groups`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/user/monthly-cards/groups`);
     const result: ApiResponse<CardGroupDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
     return result.data;
   },
 
   async cancelPayment(orderCode: number, reason?: string): Promise<void> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/payments/cancel/${orderCode}`, {
+    const response = await authFetch(`${API_URL}/payments/cancel/${orderCode}`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify({ reason: reason || "Người dùng chủ động hủy trên giao diện" })
     });
-
     const result: ApiResponse<any> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể hủy thanh toán.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể hủy thanh toán.");
   },
 
   async checkPaymentStatus(orderCode: number): Promise<any> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/payments/status/${orderCode}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/payments/status/${orderCode}`);
     const result: ApiResponse<any> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Lỗi kiểm tra trạng thái thanh toán.");
-    }
+    if (!response.ok) throw new Error(result.message || "Lỗi kiểm tra trạng thái thanh toán.");
     return result.data;
   },
 
   async mockPaymentSuccess(orderCode: number): Promise<void> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/payments/mock-success/${orderCode}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+    const response = await authFetch(`${API_URL}/payments/mock-success/${orderCode}`, {
+      method: "POST"
     });
-
     const result: ApiResponse<any> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Lỗi khi giả lập thanh toán.");
-    }
+    if (!response.ok) throw new Error(result.message || "Lỗi khi giả lập thanh toán.");
   }
 };

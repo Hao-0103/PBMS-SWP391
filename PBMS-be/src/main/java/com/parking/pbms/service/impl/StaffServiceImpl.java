@@ -22,20 +22,16 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class StaffServiceImpl implements StaffService {
 
-    private final LaneRepository laneRepository;
     private final FloorRepository floorRepository;
-    private final ParkingTicketRepository parkingTicketRepository;
+    private final ParkingSessionRepository ParkingSessionRepository;
     private final ReservationRepository reservationRepository;
     private final CardRepository cardRepository;
     private final VehicleRepository vehicleRepository;
     private final StaffRepository staffRepository;
     private final AccountRepository accountRepository;
     private final ViolationRuleRepository violationRuleRepository;
-
-    @Override
-    public List<Lane> getLanes() {
-        return laneRepository.findAll();
-    }
+    private final BarcodeCardRepository barcodeCardRepository;
+    private final CardGroupRepository cardGroupRepository;
 
     @Override
     public List<Floor> getFloors() {
@@ -51,18 +47,33 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        // Find floor and lane
+        // Find floor
         Floor floor = floorRepository.findByFloorCode(request.floorCode())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tầng: " + request.floorCode()));
-        Lane lane = laneRepository.findByLaneCode(request.laneCode())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy làn xe: " + request.laneCode()));
-
-        if (!lane.getLaneType().equalsIgnoreCase("ENTRY")) {
-            throw new RuntimeException("Làn xe " + request.laneCode() + " không phải làn vào");
-        }
 
         String plateNo = request.plateNo().trim().toUpperCase();
         String vehicleType = request.vehicleType().trim().toUpperCase();
+
+        // Always validate cardBarcode for all check-ins (visitor & pre-booked)
+        String cardBarcode = request.cardBarcode();
+        if (cardBarcode == null || cardBarcode.trim().length() != 10) {
+            throw new RuntimeException("Barcode thẻ xe phải đúng 10 ký tự.");
+        }
+        String barcodeClean = cardBarcode.trim().toUpperCase();
+
+        // Check if barcode exists in database and is active
+        boolean barcodeExists = barcodeCardRepository.findByBarcodeAndIsActive(barcodeClean, true).isPresent();
+        if (!barcodeExists) {
+            throw new RuntimeException("Thẻ xe barcode này không hợp lệ hoặc đã bị khóa.");
+        }
+
+        // Check if barcode is already in use (only block if ticket is currently ACTIVE = xe đang trong bãi)
+        // Không block PAID/COMPLETED vì barcode có thể tái sử dụng sau khi xe đã ra
+        Optional<ParkingSession> activeCardTicket = ParkingSessionRepository
+                .findFirstByBarcodeAndStatusInOrderByCheckInAtDesc(barcodeClean, java.util.List.of("ACTIVE"));
+        if (activeCardTicket.isPresent()) {
+            throw new RuntimeException("Thẻ xe này đang được sử dụng trong bãi xe.");
+        }
 
         Integer cardId = null;
         Integer vehicleId = null;
@@ -96,17 +107,6 @@ public class StaffServiceImpl implements StaffService {
                 Vehicle vehicle = vehicleRepository.findById(card.getVehicleId())
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy phương tiện đăng ký cho thẻ tháng này"));
 
-                // Kiểm tra loại xe của thẻ tháng có khớp với loại xe của làn trực không
-                String laneVehicleType = lane.getVehicleType().toUpperCase();
-                String cardVehicleType = vehicle.getVehicleType().toUpperCase();
-                if (!"BOTH".equals(laneVehicleType) && !laneVehicleType.equals(cardVehicleType)) {
-                    String laneTypeDisplay = "MOTORCYCLE".equals(laneVehicleType) ? "xe máy" : "ô tô";
-                    String cardTypeDisplay = "MOTORCYCLE".equals(cardVehicleType) ? "xe máy" : "ô tô";
-                    throw new RuntimeException(
-                        "Sai làn trực! Thẻ tháng " + cardTypeDisplay + " không được phép đi vào làn " + laneTypeDisplay + ". Vui lòng chọn đúng làn xe."
-                    );
-                }
-
                 if (!vehicle.getPlateNo().trim().equalsIgnoreCase(plateNo)) {
                     throw new RuntimeException("Biển số xe không khớp. Thẻ đăng ký biển: " + vehicle.getPlateNo());
                 }
@@ -116,7 +116,7 @@ public class StaffServiceImpl implements StaffService {
                 }
 
                 // Check if card is already inside
-                Optional<ParkingTicket> activeTicket = parkingTicketRepository
+                Optional<ParkingSession> activeTicket = ParkingSessionRepository
                         .findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.getCardId(), "ACTIVE");
                 if (activeTicket.isPresent()) {
                     throw new RuntimeException("Thẻ này đã được quét vào và chưa quét ra");
@@ -150,7 +150,7 @@ public class StaffServiceImpl implements StaffService {
                     throw new RuntimeException("Loại xe không khớp với loại xe đăng ký của đơn đặt trước");
                 }
 
-                Optional<ParkingTicket> activeTicket = parkingTicketRepository
+                Optional<ParkingSession> activeTicket = ParkingSessionRepository
                         .findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.getReservationId(), "ACTIVE");
                 if (activeTicket.isPresent()) {
                     throw new RuntimeException("Đơn đặt trước này đã được quét vào và chưa quét ra");
@@ -184,7 +184,7 @@ public class StaffServiceImpl implements StaffService {
             vehicleId = vehicle.getVehicleId();
 
             // Check if vehicle already in parking
-            Optional<ParkingTicket> activeTicket = parkingTicketRepository
+            Optional<ParkingSession> activeTicket = ParkingSessionRepository
                     .findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(plateNo, "ACTIVE");
             if (activeTicket.isPresent()) {
                 throw new RuntimeException("Xe mang biển số " + plateNo + " đã ở trong bãi xe");
@@ -192,9 +192,8 @@ public class StaffServiceImpl implements StaffService {
         }
 
         // Create Parking Ticket
-        String qrToken = "TK-" + UUID.randomUUID().toString().replaceAll("-", "").substring(0, 16).toUpperCase();
-        ParkingTicket ticket = ParkingTicket.builder()
-                .qrToken(qrToken)
+        ParkingSession ticket = ParkingSession.builder()
+                .barcode(barcodeClean)
                 .cardId(cardId)
                 .vehicleId(vehicleId)
                 .reservationId(reservationId)
@@ -203,7 +202,6 @@ public class StaffServiceImpl implements StaffService {
                 .plateNoSnapshot(plateNo)
                 .entryImage(request.entryImage())
                 .entryFloorId(floor.getFloorId())
-                .entryLaneId(lane.getLaneId())
                 .entryStaffId(staff.getStaffId())
                 .checkInAt(LocalDateTime.now())
                 .feeAmount(BigDecimal.ZERO)
@@ -212,22 +210,20 @@ public class StaffServiceImpl implements StaffService {
                 .forceCheckout(false)
                 .build();
 
-        parkingTicketRepository.saveAndFlush(ticket);
+        ParkingSessionRepository.saveAndFlush(ticket);
 
         // Fetch re-loaded entity to get DB computed TicketNo
-        ticket = parkingTicketRepository.findById(ticket.getTicketId()).orElse(ticket);
-        String ticketNo = ticket.getTicketNo() != null ? ticket.getTicketNo() : "TK" + String.format("%06d", ticket.getTicketId());
+        ticket = ParkingSessionRepository.findById(ticket.getSessionId()).orElse(ticket);
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
-                ticket.getTicketId(),
+                ticket.getSessionId(),
                 ticketNo,
-                ticket.getQrToken(),
+                ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),
                 ticket.getPlateNoSnapshot(),
                 floor.getFloorCode(),
-                lane.getLaneCode(),
-                null,
                 staff.getFullName(),
                 null,
                 ticket.getCheckInAt(),
@@ -250,32 +246,27 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        // Find lane
-        Lane lane = laneRepository.findByLaneCode(request.laneCode())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy làn xe: " + request.laneCode()));
-
-        if (!lane.getLaneType().equalsIgnoreCase("EXIT")) {
-            throw new RuntimeException("Làn xe " + request.laneCode() + " không phải làn ra");
-        }
-
         String input = request.ticketNoOrQrToken().trim().toUpperCase();
-        Optional<ParkingTicket> ticketOpt = Optional.empty();
+        Optional<ParkingSession> ticketOpt = Optional.empty();
 
         // 1. Try by ticket number
-        ticketOpt = parkingTicketRepository.findByTicketNo(input);
+        ticketOpt = ParkingSessionRepository.findBySessionNo(input);
 
         // 2. Try by QR Token
         if (!ticketOpt.isPresent()) {
-            ticketOpt = parkingTicketRepository.findByQrToken(input);
+            ticketOpt = ParkingSessionRepository.findFirstByBarcodeAndStatusInOrderByCheckInAtDesc(input, java.util.List.of("ACTIVE", "PAID"));
+            if (!ticketOpt.isPresent()) {
+                ticketOpt = ParkingSessionRepository.findFirstByBarcodeOrderByCheckInAtDesc(input);
+            }
         }
 
         // 3. Try by CardNo
         if (!ticketOpt.isPresent() && input.startsWith("CARD")) {
             Optional<Card> card = cardRepository.findByCardNo(input);
             if (card.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "ACTIVE");
+                ticketOpt = ParkingSessionRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "ACTIVE");
                 if (!ticketOpt.isPresent()) {
-                    ticketOpt = parkingTicketRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "PAID");
+                    ticketOpt = ParkingSessionRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "PAID");
                 }
             }
         }
@@ -284,25 +275,34 @@ public class StaffServiceImpl implements StaffService {
         if (!ticketOpt.isPresent() && input.startsWith("RES")) {
             Optional<Reservation> res = reservationRepository.findByReservationNo(input);
             if (res.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "ACTIVE");
+                ticketOpt = ParkingSessionRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "ACTIVE");
                 if (!ticketOpt.isPresent()) {
-                    ticketOpt = parkingTicketRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "PAID");
+                    ticketOpt = ParkingSessionRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "PAID");
                 }
             }
         }
 
         // 5. Try by PlateNo
         if (!ticketOpt.isPresent()) {
-            ticketOpt = parkingTicketRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "ACTIVE");
+            ticketOpt = ParkingSessionRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "ACTIVE");
             if (!ticketOpt.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "PAID");
+                ticketOpt = ParkingSessionRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "PAID");
             }
         }
 
-        ParkingTicket ticket = ticketOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán"));
+        ParkingSession ticket = ticketOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán"));
 
         if (!ticket.getStatus().equalsIgnoreCase("ACTIVE") && !ticket.getStatus().equalsIgnoreCase("PAID")) {
-            throw new RuntimeException("Vé này không ở trạng thái hoạt động hoặc chưa thanh toán (Trạng thái: " + ticket.getStatus() + ")");
+            throw new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán");
+        }
+
+        // Validate exit license plate against entry license plate snapshot
+        if (request.exitPlate() != null && !request.exitPlate().trim().isEmpty()) {
+            String entryPlateClean = ticket.getPlateNoSnapshot().trim().toUpperCase().replaceAll("[^A-Z0-9]", "");
+            String exitPlateClean = request.exitPlate().trim().toUpperCase().replaceAll("[^A-Z0-9]", "");
+            if (!entryPlateClean.equals(exitPlateClean)) {
+                throw new RuntimeException("Biển số xe lúc ra không khớp với biển số xe lúc vào.");
+            }
         }
 
         // Compute fee
@@ -316,6 +316,12 @@ public class StaffServiceImpl implements StaffService {
 
         if ("SINGLE".equalsIgnoreCase(ticketType)) {
             BigDecimal basePrice = "CAR".equalsIgnoreCase(vehicleType) ? new BigDecimal("20000") : new BigDecimal("5000");
+            Optional<CardGroup> cgOpt = cardGroupRepository.findFirstByVehicleTypeIgnoreCaseAndTicketTypeIgnoreCaseAndStatusIgnoreCase(
+                vehicleType, "SINGLE", "ACTIVE"
+            );
+            if (cgOpt.isPresent()) {
+                basePrice = cgOpt.get().getBasePrice();
+            }
             fee = basePrice;
 
             // Phạt đỗ quá giờ (lấy từ database)
@@ -359,14 +365,13 @@ public class StaffServiceImpl implements StaffService {
 
         // Update Ticket
         ticket.setCheckOutAt(checkOutTime);
-        ticket.setExitLaneId(lane.getLaneId());
         ticket.setExitStaffId(staff.getStaffId());
         ticket.setFeeAmount(fee);
         ticket.setPenaltyAmount(penalty);
         ticket.setViolationReason(violationReason);
         ticket.setExitImage(request.exitImage());
         ticket.setStatus("COMPLETED");
-        parkingTicketRepository.save(ticket);
+        ParkingSessionRepository.save(ticket);
 
         // Update Reservation if exists
         if (ticket.getReservationId() != null) {
@@ -387,13 +392,6 @@ public class StaffServiceImpl implements StaffService {
             floorCode = floor.getFloorCode();
         }
 
-        // Get entry lane code
-        String entryLaneCode = "Unknown";
-        Lane entryLane = laneRepository.findById(ticket.getEntryLaneId()).orElse(null);
-        if (entryLane != null) {
-            entryLaneCode = entryLane.getLaneCode();
-        }
-
         // Get entry staff name
         String entryStaffName = "Unknown";
         Staff entryStaff = staffRepository.findById(ticket.getEntryStaffId()).orElse(null);
@@ -401,30 +399,23 @@ public class StaffServiceImpl implements StaffService {
             entryStaffName = entryStaff.getFullName();
         }
 
-        String ticketNo = ticket.getTicketNo() != null ? ticket.getTicketNo() : "TK" + String.format("%06d", ticket.getTicketId());
-
-        String checkoutMsg = "Thanh toán và cho xe ra thành công";
-        if (penalty.compareTo(BigDecimal.ZERO) > 0) {
-            checkoutMsg = "Phạt quá hạn đỗ: " + String.format("%,d", penalty.longValue()) + "đ (đã cộng vào tổng tiền vé)";
-        }
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
-                ticket.getTicketId(),
+                ticket.getSessionId(),
                 ticketNo,
-                ticket.getQrToken(),
+                ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),
                 ticket.getPlateNoSnapshot(),
                 floorCode,
-                entryLaneCode,
-                lane.getLaneCode(),
                 entryStaffName,
                 staff.getFullName(),
                 ticket.getCheckInAt(),
                 ticket.getCheckOutAt(),
                 ticket.getFeeAmount(),
                 ticket.getStatus(),
-                checkoutMsg,
+                "Xe ra thành công",
                 ticket.getViolationReason(),
                 ticket.getEntryImage(),
                 ticket.getExitImage()
@@ -433,34 +424,31 @@ public class StaffServiceImpl implements StaffService {
 
     @Override
     @Transactional
-    public StaffTicketResponse previewCheckOut(String ticketNoOrQrToken, String laneCode, String username) {
+    public StaffTicketResponse previewCheckOut(String ticketNoOrQrToken, String username) {
+        // Find staff
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản: " + username));
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        Lane lane = laneRepository.findByLaneCode(laneCode)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy làn xe: " + laneCode));
-
-        if (!lane.getLaneType().equalsIgnoreCase("EXIT")) {
-            throw new RuntimeException("Làn xe " + laneCode + " không phải làn ra");
-        }
-
         String input = ticketNoOrQrToken.trim().toUpperCase();
-        Optional<ParkingTicket> ticketOpt = Optional.empty();
+        Optional<ParkingSession> ticketOpt = Optional.empty();
 
-        ticketOpt = parkingTicketRepository.findByTicketNo(input);
+        ticketOpt = ParkingSessionRepository.findBySessionNo(input);
 
         if (!ticketOpt.isPresent()) {
-            ticketOpt = parkingTicketRepository.findByQrToken(input);
+            ticketOpt = ParkingSessionRepository.findFirstByBarcodeAndStatusInOrderByCheckInAtDesc(input, java.util.List.of("ACTIVE", "PAID"));
+            if (!ticketOpt.isPresent()) {
+                ticketOpt = ParkingSessionRepository.findFirstByBarcodeOrderByCheckInAtDesc(input);
+            }
         }
 
         if (!ticketOpt.isPresent() && input.startsWith("CARD")) {
             Optional<Card> card = cardRepository.findByCardNo(input);
             if (card.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "ACTIVE");
+                ticketOpt = ParkingSessionRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "ACTIVE");
                 if (!ticketOpt.isPresent()) {
-                    ticketOpt = parkingTicketRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "PAID");
+                    ticketOpt = ParkingSessionRepository.findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.get().getCardId(), "PAID");
                 }
             }
         }
@@ -468,24 +456,24 @@ public class StaffServiceImpl implements StaffService {
         if (!ticketOpt.isPresent() && input.startsWith("RES")) {
             Optional<Reservation> res = reservationRepository.findByReservationNo(input);
             if (res.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "ACTIVE");
+                ticketOpt = ParkingSessionRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "ACTIVE");
                 if (!ticketOpt.isPresent()) {
-                    ticketOpt = parkingTicketRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "PAID");
+                    ticketOpt = ParkingSessionRepository.findFirstByReservationIdAndStatusOrderByCheckInAtDesc(res.get().getReservationId(), "PAID");
                 }
             }
         }
 
         if (!ticketOpt.isPresent()) {
-            ticketOpt = parkingTicketRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "ACTIVE");
+            ticketOpt = ParkingSessionRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "ACTIVE");
             if (!ticketOpt.isPresent()) {
-                ticketOpt = parkingTicketRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "PAID");
+                ticketOpt = ParkingSessionRepository.findFirstByPlateNoSnapshotAndStatusOrderByCheckInAtDesc(input, "PAID");
             }
         }
 
-        ParkingTicket ticket = ticketOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán"));
+        ParkingSession ticket = ticketOpt.orElseThrow(() -> new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán"));
 
         if (!ticket.getStatus().equalsIgnoreCase("ACTIVE") && !ticket.getStatus().equalsIgnoreCase("PAID")) {
-            throw new RuntimeException("Vé này không ở trạng thái hoạt động hoặc chưa thanh toán (Trạng thái: " + ticket.getStatus() + ")");
+            throw new RuntimeException("Không tìm thấy thông tin xe đang gửi hoặc vé đã được thanh toán");
         }
 
         BigDecimal fee = BigDecimal.ZERO;
@@ -498,6 +486,12 @@ public class StaffServiceImpl implements StaffService {
 
         if ("SINGLE".equalsIgnoreCase(ticketType)) {
             BigDecimal basePrice = "CAR".equalsIgnoreCase(vehicleType) ? new BigDecimal("20000") : new BigDecimal("5000");
+            Optional<CardGroup> cgOpt = cardGroupRepository.findFirstByVehicleTypeIgnoreCaseAndTicketTypeIgnoreCaseAndStatusIgnoreCase(
+                vehicleType, "SINGLE", "ACTIVE"
+            );
+            if (cgOpt.isPresent()) {
+                basePrice = cgOpt.get().getBasePrice();
+            }
             fee = basePrice;
 
             Optional<ViolationRule> ruleOpt = violationRuleRepository.findByTicketTypeAndVehicleType(ticketType, vehicleType);
@@ -544,12 +538,6 @@ public class StaffServiceImpl implements StaffService {
             floorCode = floor.getFloorCode();
         }
 
-        String entryLaneCode = "Unknown";
-        Lane entryLane = laneRepository.findById(ticket.getEntryLaneId()).orElse(null);
-        if (entryLane != null) {
-            entryLaneCode = entryLane.getLaneCode();
-        }
-
         String entryStaffName = "Unknown";
         Staff entryStaff = staffRepository.findById(ticket.getEntryStaffId()).orElse(null);
         if (entryStaff != null) {
@@ -560,9 +548,9 @@ public class StaffServiceImpl implements StaffService {
         ticket.setFeeAmount(fee);
         ticket.setPenaltyAmount(penalty);
         ticket.setViolationReason(violationReason);
-        parkingTicketRepository.save(ticket);
+        ParkingSessionRepository.save(ticket);
 
-        String ticketNo = ticket.getTicketNo() != null ? ticket.getTicketNo() : "TK" + String.format("%06d", ticket.getTicketId());
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         String checkoutMsg = "Xem trước thông tin vé ra thành công";
         if (penalty.compareTo(BigDecimal.ZERO) > 0) {
@@ -570,15 +558,13 @@ public class StaffServiceImpl implements StaffService {
         }
 
         return new StaffTicketResponse(
-                ticket.getTicketId(),
+                ticket.getSessionId(),
                 ticketNo,
-                ticket.getQrToken(),
+                ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),
                 ticket.getPlateNoSnapshot(),
                 floorCode,
-                entryLaneCode,
-                lane.getLaneCode(),
                 entryStaffName,
                 staff.getFullName(),
                 ticket.getCheckInAt(),
@@ -599,7 +585,7 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        List<ParkingTicket> tickets = parkingTicketRepository.findByEntryStaffIdOrExitStaffIdOrderByCheckInAtDesc(
+        List<ParkingSession> tickets = ParkingSessionRepository.findByEntryStaffIdOrExitStaffIdOrderByCheckInAtDesc(
                 staff.getStaffId(), staff.getStaffId());
 
         return tickets.stream().map(ticket -> {
@@ -607,8 +593,8 @@ public class StaffServiceImpl implements StaffService {
             String ticketDisplay = ticket.getTicketType().equalsIgnoreCase("SINGLE") ? "Vé lượt" : "Vé tháng";
 
             return new StaffTransactionResponse(
-                    ticket.getTicketId(),
-                    ticket.getTicketNo() != null ? ticket.getTicketNo() : "TK" + String.format("%06d", ticket.getTicketId()),
+                    ticket.getSessionId(),
+                    ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId()),
                     ticket.getPlateNoSnapshot(),
                     vehicleDisplay,
                     ticketDisplay,

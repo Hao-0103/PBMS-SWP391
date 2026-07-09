@@ -6,7 +6,7 @@ import VehicleExit from "./VehicleExit";
 import TransactionHistory from "./TransactionHistory";
 import StaffExceptions from "./StaffExceptions";
 import AdminFloorSlot from "../admin/AdminFloorSlot";
-import { staffService, FloorDto, LaneDto, StaffAssignmentDto } from "../../../services/staffService";
+import { staffService, FloorDto, StaffAssignmentDto } from "../../../services/staffService";
 import { AlertCircle, RefreshCw } from "lucide-react";
 
 interface StaffAppProps {
@@ -17,10 +17,8 @@ interface StaffAppProps {
 export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
   const [screen, setScreen] = useState<StaffScreen>("dashboard");
   const [floors, setFloors] = useState<FloorDto[]>([]);
-  const [lanes, setLanes] = useState<LaneDto[]>([]);
   
   const [selectedFloorCode, setSelectedFloorCode] = useState<string>("");
-  const [selectedLaneCode, setSelectedLaneCode] = useState<string>("");
 
   const [assignment, setAssignment] = useState<StaffAssignmentDto | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -35,26 +33,19 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
       setAssignment(activeAssign);
 
       if (activeAssign) {
-        // Automatically lock Floor and Lane
+        // Automatically lock Floor
         setSelectedFloorCode(activeAssign.floorCode);
-        setSelectedLaneCode(activeAssign.laneCode);
         localStorage.setItem("staff-floor-code", activeAssign.floorCode);
-        localStorage.setItem("staff-lane-code", activeAssign.laneCode);
 
-        // Redirect to entry or exit screen by default depending on lane type
-        setScreen(activeAssign.laneType === "ENTRY" ? "vehicle-entry" : "vehicle-exit");
+        // Redirect to vehicle-entry screen by default
+        setScreen("vehicle-entry");
       } else {
         // Fallback or lock
         const floorData = await staffService.getFloors();
-        const laneData = await staffService.getLanes();
         setFloors(floorData);
-        setLanes(laneData);
 
         const savedFloor = localStorage.getItem("staff-floor-code") || "";
-        const savedLane = localStorage.getItem("staff-lane-code") || "";
-
         setSelectedFloorCode(savedFloor || (floorData[0]?.floorCode ?? ""));
-        setSelectedLaneCode(savedLane || (laneData[0]?.laneCode ?? ""));
       }
     } catch (err: any) {
       console.error("Failed to load staff details", err);
@@ -72,12 +63,6 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
     if (assignment) return; // locked
     setSelectedFloorCode(code);
     localStorage.setItem("staff-floor-code", code);
-  };
-
-  const handleLaneChange = (code: string) => {
-    if (assignment) return; // locked
-    setSelectedLaneCode(code);
-    localStorage.setItem("staff-lane-code", code);
   };
 
   function renderScreen() {
@@ -99,7 +84,7 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
             <h2 className="text-base font-bold text-gray-800 mb-2">Bạn chưa được phân công ca trực</h2>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
               Hệ thống không tìm thấy lịch phân công trực hoạt động của bạn cho ngày hôm nay. 
-              Vui lòng liên hệ với Admin hoặc Tổ trưởng ca để được phân công Tầng và Làn xe làm việc.
+              Vui lòng liên hệ với Admin hoặc Tổ trưởng ca để được phân công Tầng làm việc.
             </p>
             <button 
               onClick={loadData}
@@ -119,13 +104,11 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
         return (
           <VehicleEntry
             selectedFloorCode={selectedFloorCode}
-            selectedLaneCode={selectedLaneCode}
           />
         );
       case "vehicle-exit":
         return (
           <VehicleExit
-            selectedLaneCode={selectedLaneCode}
             selectedFloorCode={selectedFloorCode}
           />
         );
@@ -147,11 +130,8 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
       onLogout={onLogout}
       staffName={staffName}
       selectedFloorCode={selectedFloorCode}
-      selectedLaneCode={selectedLaneCode}
       floors={floors}
-      lanes={lanes}
       onFloorChange={handleFloorChange}
-      onLaneChange={handleLaneChange}
       assignment={assignment}
     >
       {renderScreen()}

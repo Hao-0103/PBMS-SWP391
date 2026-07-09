@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface UserCardService {
     List<MonthlyCardResponse> getMyCards(String username);
+    List<MonthlyCardResponse> getCardsByAccountId(Integer accountId);
     MonthlyCardResponse registerCard(String username, RegisterCardRequest request);
     MonthlyCardResponse renewCard(String username, RenewCardRequest request);
     List<CardGroup> getActiveCardGroups();

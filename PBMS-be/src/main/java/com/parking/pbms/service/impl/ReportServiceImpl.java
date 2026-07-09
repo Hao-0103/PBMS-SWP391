@@ -3,7 +3,6 @@ package com.parking.pbms.service.impl;
 import com.parking.pbms.dto.VehicleReportResponse;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
-import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.ReportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,13 +14,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ReportServiceImpl implements ReportService {
 
-    private final ParkingTicketRepository parkingTicketRepository;
+    private final ParkingSessionRepository parkingSessionRepository;
     private final CardRepository cardRepository;
     private final CardGroupRepository cardGroupRepository;
     private final FloorRepository floorRepository;
-    private final LaneRepository laneRepository;
     private final StaffRepository staffRepository;
-    private final CustomerRepository customerRepository;
+    private final AccountRepository accountRepository;
 
     @Override
     public List<VehicleReportResponse> getVehicleReport(
@@ -29,61 +27,49 @@ public class ReportServiceImpl implements ReportService {
             String keyword,
             LocalDateTime fromDate,
             LocalDateTime toDate,
-            Integer laneId,
             Integer staffId,
             String ticketType
     ) {
-        List<ParkingTicket> tickets = parkingTicketRepository.findAll();
+        List<ParkingSession> allSessions = parkingSessionRepository.findAll();
 
-        return tickets.stream()
-                .filter(t -> {
+        return allSessions.stream()
+                .filter(s -> {
                     // Filter by tab
                     if (tab != null && tab.equalsIgnoreCase("exit")) {
-                        if (t.getCheckOutAt() == null) return false;
+                        if (s.getCheckOutAt() == null) return false;
                     }
 
                     // Filter by keyword
                     if (keyword != null && !keyword.trim().isEmpty()) {
                         String kw = keyword.trim().toLowerCase();
-                        boolean matchPlate = t.getPlateNoSnapshot() != null && t.getPlateNoSnapshot().toLowerCase().contains(kw);
-                        boolean matchTicketNo = t.getTicketNo() != null && t.getTicketNo().toLowerCase().contains(kw);
+                        boolean matchPlate = s.getPlateNoSnapshot() != null && s.getPlateNoSnapshot().toLowerCase().contains(kw);
+                        boolean matchTicketNo = s.getSessionNo() != null && s.getSessionNo().toLowerCase().contains(kw);
                         if (!matchPlate && !matchTicketNo) return false;
                     }
 
                     // Filter by date range
                     if (tab != null && tab.equalsIgnoreCase("entry")) {
-                        if (t.getCheckInAt() == null) return false;
-                        if (fromDate != null && t.getCheckInAt().isBefore(fromDate)) return false;
-                        if (toDate != null && t.getCheckInAt().isAfter(toDate)) return false;
+                        if (s.getCheckInAt() == null) return false;
+                        if (fromDate != null && s.getCheckInAt().isBefore(fromDate)) return false;
+                        if (toDate != null && s.getCheckInAt().isAfter(toDate)) return false;
                     } else {
-                        if (t.getCheckOutAt() == null) return false;
-                        if (fromDate != null && t.getCheckOutAt().isBefore(fromDate)) return false;
-                        if (toDate != null && t.getCheckOutAt().isAfter(toDate)) return false;
-                    }
-
-                    // Filter by lane
-                    if (laneId != null) {
-                        if (tab != null && tab.equalsIgnoreCase("entry")) {
-                            if (!laneId.equals(t.getEntryLaneId())) return false;
-                        } else {
-                            if (!laneId.equals(t.getExitLaneId())) return false;
-                        }
+                        if (s.getCheckOutAt() == null) return false;
+                        if (fromDate != null && s.getCheckOutAt().isBefore(fromDate)) return false;
+                        if (toDate != null && s.getCheckOutAt().isAfter(toDate)) return false;
                     }
 
                     // Filter by staff
                     if (staffId != null) {
                         if (tab != null && tab.equalsIgnoreCase("entry")) {
-                            if (!staffId.equals(t.getEntryStaffId())) return false;
+                            if (!staffId.equals(s.getEntryStaffId())) return false;
                         } else {
-                            if (!staffId.equals(t.getExitStaffId())) return false;
+                            if (!staffId.equals(s.getExitStaffId())) return false;
                         }
                     }
 
-                    // Filter by ticket type
-                    if (ticketType != null && !ticketType.trim().isEmpty()) {
-                        if (!ticketType.equalsIgnoreCase(t.getTicketType())) return false;
-                    }
-
+                    if ("entry".equalsIgnoreCase(tab)) return s.getCheckInAt() != null;
+                    if ("exit".equalsIgnoreCase(tab)) return s.getCheckOutAt() != null;
+                    if ("violation".equalsIgnoreCase(tab)) return s.getPenaltyAmount() != null && s.getPenaltyAmount().compareTo(java.math.BigDecimal.ZERO) > 0;
                     return true;
                 })
                 .map(this::mapToResponse)
@@ -97,94 +83,75 @@ public class ReportServiceImpl implements ReportService {
                 .toList();
     }
 
-    private VehicleReportResponse mapToResponse(ParkingTicket ticket) {
+    private VehicleReportResponse mapToResponse(ParkingSession session) {
         String cardNo = "";
-        String rfidUid = "";
         String groupName = "";
         String customerName = "";
 
-        if (ticket.getCardId() != null) {
-            Card card = cardRepository.findById(ticket.getCardId()).orElse(null);
+        if (session.getCardId() != null) {
+            Card card = cardRepository.findById(session.getCardId()).orElse(null);
             if (card != null) {
                 cardNo = card.getCardNo();
-                rfidUid = card.getRfidUid();
                 if (card.getCardGroupId() != null) {
                     CardGroup cg = cardGroupRepository.findById(card.getCardGroupId()).orElse(null);
                     if (cg != null) {
                         groupName = cg.getGroupName();
                     }
                 }
-                if (card.getCustomerId() != null) {
-                    Customer cust = customerRepository.findById(card.getCustomerId()).orElse(null);
-                    if (cust != null) {
-                        customerName = cust.getFullName();
+                if (card.getAccountId() != null) {
+                    Account account = accountRepository.findById(card.getAccountId()).orElse(null);
+                    if (account != null) {
+                        customerName = account.getFullName();
                     }
                 }
             }
         }
 
         if (groupName.isEmpty()) {
-            groupName = "VE LƯỢT " + (ticket.getVehicleType().equalsIgnoreCase("MOTO") ? "XE MÁY" : "Ô TÔ");
+            groupName = "VE LƯỢT " + (session.getVehicleType().equalsIgnoreCase("MOTO") ? "XE MÁY" : "Ô TÔ");
         }
 
         String floorName = "";
-        if (ticket.getEntryFloorId() != null) {
-            Floor f = floorRepository.findById(ticket.getEntryFloorId()).orElse(null);
+        if (session.getEntryFloorId() != null) {
+            Floor f = floorRepository.findById(session.getEntryFloorId()).orElse(null);
             if (f != null) {
                 floorName = f.getFloorName();
             }
         }
 
-        String entryLaneName = "";
-        if (ticket.getEntryLaneId() != null) {
-            Lane l = laneRepository.findById(ticket.getEntryLaneId()).orElse(null);
-            if (l != null) {
-                entryLaneName = l.getLaneName();
-            }
-        }
-
-        String exitLaneName = "";
-        if (ticket.getExitLaneId() != null) {
-            Lane l = laneRepository.findById(ticket.getExitLaneId()).orElse(null);
-            if (l != null) {
-                exitLaneName = l.getLaneName();
-            }
-        }
-
         String entryStaffName = "";
-        if (ticket.getEntryStaffId() != null) {
-            Staff s = staffRepository.findById(ticket.getEntryStaffId()).orElse(null);
+        if (session.getEntryStaffId() != null) {
+            Staff s = staffRepository.findById(session.getEntryStaffId()).orElse(null);
             if (s != null) {
                 entryStaffName = s.getFullName();
             }
         }
 
         String exitStaffName = "";
-        if (ticket.getExitStaffId() != null) {
-            Staff s = staffRepository.findById(ticket.getExitStaffId()).orElse(null);
+        if (session.getExitStaffId() != null) {
+            Staff s = staffRepository.findById(session.getExitStaffId()).orElse(null);
             if (s != null) {
                 exitStaffName = s.getFullName();
             }
         }
 
         return new VehicleReportResponse(
-                ticket.getTicketId(),
-                ticket.getTicketNo(),
+                session.getSessionId(),
+                session.getSessionNo(),
+                session.getPlateNoSnapshot(),
+                session.getVehicleType(),
                 cardNo,
-                rfidUid,
-                ticket.getPlateNoSnapshot(),
-                floorName,
-                ticket.getCheckInAt(),
-                ticket.getCheckOutAt(),
-                ticket.getFeeAmount(),
                 groupName,
                 customerName,
-                entryLaneName,
-                exitLaneName,
+                session.getCheckInAt(),
+                session.getCheckOutAt(),
+                session.getFeeAmount(),
+                session.getPenaltyAmount(),
+                session.getViolationReason(),
+                floorName,
                 entryStaffName,
                 exitStaffName,
-                ticket.getEntryImage(),
-                ticket.getExitImage()
+                session.getStatus()
         );
     }
 }

@@ -6,24 +6,24 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "ParkingTickets", schema = "dbo")
+@Table(name = "ParkingSessions", schema = "dbo")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ParkingTicket {
+public class ParkingSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "TicketID")
-    private Long ticketId;
+    private Long sessionId;
 
     @Column(name = "TicketNo", insertable = false, updatable = false)
-    private String ticketNo;
+    private String sessionNo;
 
-    @Column(name = "QRToken", nullable = false)
-    private String qrToken;
+    @Column(name = "Barcode", nullable = false)
+    private String barcode;
 
     @Column(name = "CardID")
     private Integer cardId;
@@ -51,21 +51,6 @@ public class ParkingTicket {
 
     @Column(name = "EntryFloorID", nullable = false)
     private Integer entryFloorId;
-
-    @Column(name = "ParkingSlotID")
-    private Integer parkingSlotId;
-
-    @Column(name = "SuggestedSlotID")
-    private Integer suggestedSlotId;
-
-    @Column(name = "SlotOverrideReason", length = 500)
-    private String slotOverrideReason;
-
-    @Column(name = "EntryLaneID", nullable = false)
-    private Integer entryLaneId;
-
-    @Column(name = "ExitLaneID")
-    private Integer exitLaneId;
 
     @Column(name = "EntryStaffID", nullable = false)
     private Integer entryStaffId;

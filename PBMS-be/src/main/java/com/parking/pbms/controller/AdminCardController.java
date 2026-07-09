@@ -6,6 +6,7 @@ import com.parking.pbms.dto.CardHistoryResponse;
 import com.parking.pbms.model.CardGroup;
 import com.parking.pbms.service.CardGroupService;
 import com.parking.pbms.service.CardHistoryService;
+import com.parking.pbms.service.UserCardService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ public class AdminCardController {
 
     private final CardGroupService cardGroupService;
     private final CardHistoryService cardHistoryService;
+        private final UserCardService userCardService;
 
     // --- CARD GROUPS ---
 
@@ -76,6 +78,16 @@ public class AdminCardController {
         );
         return ResponseEntity.ok(
                 ApiResponse.success(200, "Lấy lịch sử thẻ thành công", histories)
+        );
+    }
+
+    @GetMapping("/customers/{accountId}/cards")
+    public ResponseEntity<ApiResponse<List<com.parking.pbms.dto.MonthlyCardResponse>>> getCustomerCards(
+            @PathVariable("accountId") Integer accountId
+    ) {
+        List<com.parking.pbms.dto.MonthlyCardResponse> cards = userCardService.getCardsByAccountId(accountId);
+        return ResponseEntity.ok(
+                ApiResponse.success(200, "Lấy danh sách thẻ của khách hàng thành công", cards)
         );
     }
 }

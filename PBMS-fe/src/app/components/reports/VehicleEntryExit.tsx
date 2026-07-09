@@ -2,15 +2,15 @@ import { useState, useEffect } from "react";
 import { Search, RotateCcw } from "lucide-react";
 import { cls } from "../common/ui";
 import { DateInput, FilterGroup } from "../common/DateInput";
+import { getLocalTodayStr } from "../../../utils/dateUtils";
+import ImageModal from "../common/ImageModal";
 import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
 import {
   adminCardService,
-  VehicleReportDto,
 } from "../../../services/adminCardService";
 import {
   staffService,
-  LaneDto,
   StaffMinimalDto,
 } from "../../../services/staffService";
 
@@ -26,8 +26,6 @@ interface ReportRow {
   thuTien: number;
   nhomThe: string;
   khachHang: string;
-  lanVao: string;
-  lanRa: string;
   nhanVienGiamSat: string;
   entryImage?: string;
   exitImage?: string;
@@ -68,14 +66,12 @@ export default function VehicleEntryExit() {
   const [data, setData] = useState<ReportRow[]>([]);
   const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(null);
 
-  const [lanes, setLanes] = useState<LaneDto[]>([]);
   const [staffList, setStaffList] = useState<StaffMinimalDto[]>([]);
 
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalTodayStr();
   const [keyword, setKeyword] = useState("");
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);
-  const [selectedLane, setSelectedLane] = useState("");
   const [selectedStaff, setSelectedStaff] = useState("");
   const [ticketType, setTicketType] = useState("");
 
@@ -99,26 +95,10 @@ export default function VehicleEntryExit() {
         <span className="text-gray-400">—</span>
       )
     },
-    {
-      key: "exitImage",
-      label: "Ảnh xe ra",
-      render: (val: string) => val ? (
-        <button
-          type="button"
-          onClick={() => setSelectedImageUrl(val)}
-          className="text-xs text-blue-600 hover:text-blue-800 underline font-medium"
-        >
-          Xem ảnh
-        </button>
-      ) : (
-        <span className="text-gray-400">—</span>
-      )
-    },
     { key: "tang", label: "Tầng", width: "60px" },
     { key: "tgVao", label: "Thời gian vào" },
     { key: "nhomThe", label: "Nhóm thẻ" },
     { key: "khachHang", label: "Khách hàng" },
-    { key: "lanVao", label: "Làn vào", width: "70px" },
     { key: "nhanVienGiamSat", label: "Nhân viên giám sát" },
   ];
 
@@ -163,16 +143,12 @@ export default function VehicleEntryExit() {
     { key: "thuTien", label: "Thu tiền", width: "100px", render: moneyCell },
     { key: "nhomThe", label: "Nhóm thẻ" },
     { key: "khachHang", label: "Khách hàng" },
-    { key: "lanVao", label: "Làn vào", width: "70px" },
-    { key: "lanRa", label: "Làn ra", width: "70px" },
     { key: "nhanVienGiamSat", label: "Nhân viên giám sát" },
   ];
 
   useEffect(() => {
     const loadFilters = async () => {
       try {
-        const laneData = await staffService.getLanes();
-        setLanes(laneData);
         const staffData = await staffService.getActiveStaffList();
         setStaffList(staffData);
       } catch (err) {
@@ -191,7 +167,6 @@ export default function VehicleEntryExit() {
         keyword: keyword.trim() || undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
-        laneId: selectedLane ? Number(selectedLane) : undefined,
         staffId: selectedStaff ? Number(selectedStaff) : undefined,
         ticketType: ticketType || undefined,
       };
@@ -210,8 +185,6 @@ export default function VehicleEntryExit() {
           thuTien: item.feeAmount || 0,
           nhomThe: item.groupName || "",
           khachHang: item.customerName || "",
-          lanVao: item.entryLaneName || "",
-          lanRa: item.exitLaneName || "",
           nhanVienGiamSat:
             tab === "entry"
               ? item.entryStaffName || ""
@@ -240,7 +213,6 @@ export default function VehicleEntryExit() {
     setKeyword("");
     setFromDate(todayStr);
     setToDate(todayStr);
-    setSelectedLane("");
     setSelectedStaff("");
     setTicketType("");
     setPage(1);
@@ -306,25 +278,6 @@ export default function VehicleEntryExit() {
             value={toDate}
             onChange={setToDate}
           />
-
-          <FilterGroup label="Làn">
-            <select
-              className={`${cls.select} w-[120px]`}
-              value={selectedLane}
-              onChange={(event) => setSelectedLane(event.target.value)}
-            >
-              <option value="">-- Tất cả --</option>
-              {lanes
-                .filter((l) =>
-                  tab === "entry" ? l.laneType === "ENTRY" : l.laneType === "EXIT"
-                )
-                .map((l) => (
-                  <option key={l.laneId} value={l.laneId}>
-                    {l.laneName}
-                  </option>
-                ))}
-            </select>
-          </FilterGroup>
 
           <FilterGroup label="Nhân viên giám sát">
             <select

@@ -4,21 +4,20 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record VehicleReportResponse(
-    Long ticketId,
-    String ticketNo,
-    String cardNo,
-    String rfidUid,
+    Long sessionId,
+    String sessionNo,
     String plateNo,
-    String floorName,
+    String vehicleType,
+    String cardNo,
+    String groupName,
+    String customerName,
     LocalDateTime checkInAt,
     LocalDateTime checkOutAt,
     BigDecimal feeAmount,
-    String groupName,
-    String customerName,
-    String entryLaneName,
-    String exitLaneName,
+    BigDecimal penaltyAmount,
+    String violationReason,
+    String floorName,
     String entryStaffName,
     String exitStaffName,
-    String entryImage,
-    String exitImage
+    String status
 ) {}

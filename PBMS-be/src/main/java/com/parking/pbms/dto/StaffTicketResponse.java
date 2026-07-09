@@ -11,8 +11,6 @@ public record StaffTicketResponse(
         String vehicleType,
         String plateNoSnapshot,
         String entryFloorCode,
-        String entryLaneCode,
-        String exitLaneCode,
         String entryStaffName,
         String exitStaffName,
         LocalDateTime checkInAt,

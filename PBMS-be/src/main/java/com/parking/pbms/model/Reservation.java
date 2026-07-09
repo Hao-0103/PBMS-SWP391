@@ -41,15 +41,6 @@ public class Reservation {
     @Column(name = "FloorID", nullable = false)
     private Integer floorId;
 
-    @Column(name = "ZoneID", nullable = false)
-    private Integer zoneId;
-
-    @Column(name = "OriginalSlotID", nullable = false)
-    private Integer originalSlotId;
-
-    @Column(name = "CurrentSlotID", nullable = false)
-    private Integer currentSlotId;
-
     @Column(name = "Status", nullable = false, length = 40)
     private String status;
 

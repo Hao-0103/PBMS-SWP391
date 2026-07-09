@@ -2,13 +2,13 @@ package com.parking.pbms.service.impl;
 
 import com.parking.pbms.dto.PaymentRequest;
 import com.parking.pbms.dto.PaymentResponse;
-import com.parking.pbms.model.ParkingTicket;
+import com.parking.pbms.model.ParkingSession;
 import com.parking.pbms.model.Payment;
 import com.parking.pbms.model.Card;
 import com.parking.pbms.model.CardHistory;
 import com.parking.pbms.repository.CardRepository;
 import com.parking.pbms.repository.CardHistoryRepository;
-import com.parking.pbms.repository.ParkingTicketRepository;
+import com.parking.pbms.repository.ParkingSessionRepository;
 import com.parking.pbms.repository.PaymentRepository;
 import com.parking.pbms.service.PaymentService;
 import com.parking.pbms.config.VnPayConfig;
@@ -30,7 +30,7 @@ import java.util.*;
 public class PaymentServiceImpl implements PaymentService {
 
     private final PaymentRepository paymentRepository;
-    private final ParkingTicketRepository ticketRepository;
+    private final ParkingSessionRepository ticketRepository;
     private final CardRepository cardRepository;
     private final CardHistoryRepository cardHistoryRepository;
     private final VnPayConfig vnPayConfig;
@@ -38,7 +38,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponse createPayment(PaymentRequest request) {
-        ParkingTicket ticket = ticketRepository.findById(request.getTicketId())
+        ParkingSession ticket = ticketRepository.findById(request.getTicketId())
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
 
         BigDecimal fee = ticket.getFeeAmount() != null ? ticket.getFeeAmount() : BigDecimal.ZERO;
@@ -51,11 +51,11 @@ public class PaymentServiceImpl implements PaymentService {
             totalAmount = vnpayMinimum;
         }
 
-        String description = "ThanhToanVeXe_" + ticket.getTicketId();
+        String description = "ThanhToanVeXe_" + ticket.getSessionId();
 
         // 1. Lưu trạng thái PENDING vào Database trước
         Payment payment = Payment.builder()
-                .ticketId(ticket.getTicketId())
+                .ticketId(ticket.getSessionId())
                 .amount(totalAmount)
                 .paymentMethod("VIETQR")
                 .paymentType("PARKING_FEE")
@@ -76,7 +76,7 @@ public class PaymentServiceImpl implements PaymentService {
             String paymentUrl = vnPayConfig.createPaymentUrl(
                     orderCode,
                     amount,
-                    "ThanhToanVeXe_" + ticket.getTicketId(),
+                    "ThanhToanVeXe_" + ticket.getSessionId(),
                     ip
             );
 
@@ -99,7 +99,7 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponse createCashPayment(Long ticketId) {
-        ParkingTicket ticket = ticketRepository.findById(ticketId)
+        ParkingSession ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found: " + ticketId));
 
         BigDecimal fee = ticket.getFeeAmount() != null ? ticket.getFeeAmount() : BigDecimal.ZERO;
@@ -108,11 +108,11 @@ public class PaymentServiceImpl implements PaymentService {
 
         // Tao Payment record voi trang thai PAID ngay (khong qua cong thanh toan)
         Payment payment = Payment.builder()
-                .ticketId(ticket.getTicketId())
+                .ticketId(ticket.getSessionId())
                 .amount(totalAmount)
                 .paymentMethod("CASH")
                 .paymentType("PARKING_FEE")
-                .referenceCode("CASH_" + ticket.getTicketId() + "_" + System.currentTimeMillis())
+                .referenceCode("CASH_" + ticket.getSessionId() + "_" + System.currentTimeMillis())
                 .status("PAID")
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -239,7 +239,7 @@ public class PaymentServiceImpl implements PaymentService {
                         cardRepository.save(card);
                     }
                 } else if ("PARKING_FEE".equalsIgnoreCase(payment.getPaymentType())) {
-                    ParkingTicket ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
+                    ParkingSession ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
                     if (ticket != null) {
                         ticket.setStatus("PAID");
                         ticketRepository.save(ticket);
@@ -333,7 +333,7 @@ public class PaymentServiceImpl implements PaymentService {
                 cardRepository.save(card);
             }
         } else if ("PARKING_FEE".equalsIgnoreCase(payment.getPaymentType())) {
-            ParkingTicket ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
+            ParkingSession ticket = ticketRepository.findById(payment.getTicketId()).orElse(null);
             if (ticket != null) {
                 ticket.setStatus("PAID");
                 ticketRepository.save(ticket);

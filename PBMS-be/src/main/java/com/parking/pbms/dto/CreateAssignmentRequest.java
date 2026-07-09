@@ -10,8 +10,6 @@ public record CreateAssignmentRequest(
     @NotNull(message = "Ca trực không được để trống")
     Integer shiftId,
 
-    @NotNull(message = "Làn xe không được để trống")
-    Integer laneId,
 
     @NotNull(message = "Tầng không được để trống")
     Integer floorId,

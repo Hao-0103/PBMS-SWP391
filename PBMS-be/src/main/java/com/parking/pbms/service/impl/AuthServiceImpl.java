@@ -2,11 +2,11 @@ package com.parking.pbms.service.impl;
 
 import com.parking.pbms.dto.*;
 import com.parking.pbms.model.Account;
-import com.parking.pbms.model.Customer;
+
 import com.parking.pbms.model.Role;
 import com.parking.pbms.model.User;
 import com.parking.pbms.repository.AccountRepository;
-import com.parking.pbms.repository.CustomerRepository;
+
 import com.parking.pbms.repository.RoleRepository;
 import com.parking.pbms.repository.UserRepository;
 import com.parking.pbms.service.AuthService;
@@ -31,7 +31,7 @@ public class AuthServiceImpl implements AuthService {
     private final AccountRepository accountRepository;
     private final JwtService jwtService;
     private final RoleRepository roleRepository;
-    private final CustomerRepository customerRepository;
+    
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
@@ -97,18 +97,8 @@ public class AuthServiceImpl implements AuthService {
 
         Account savedAccount = accountRepository.saveAndFlush(account);
 
-        Customer customer = Customer.builder()
-                .accountId(savedAccount.getAccountId())
-                .fullName(savedAccount.getFullName())
-                .email(savedAccount.getEmail())
-                .phone(savedAccount.getPhone())
-                .status("INACTIVE")
-                .build();
-        customerRepository.saveAndFlush(customer);
-
         User user = User.builder()
                 .accountId(savedAccount.getAccountId())
-                .customerId(customer.getCustomerId())
                 .fullName(savedAccount.getFullName())
                 .email(savedAccount.getEmail())
                 .phone(savedAccount.getPhone())
@@ -133,11 +123,6 @@ public class AuthServiceImpl implements AuthService {
 
         account.setStatus("ACTIVE");
         accountRepository.save(account);
-
-        customerRepository.findByAccountId(account.getAccountId()).ifPresent(customer -> {
-            customer.setStatus("ACTIVE");
-            customerRepository.save(customer);
-        });
 
         userRepository.findByAccountId(account.getAccountId()).ifPresent(user -> {
             user.setStatus("ACTIVE");

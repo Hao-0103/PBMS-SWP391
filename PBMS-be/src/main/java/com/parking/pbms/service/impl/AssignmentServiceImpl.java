@@ -23,7 +23,6 @@ public class AssignmentServiceImpl implements AssignmentService {
     private final StaffAssignmentRepository staffAssignmentRepository;
     private final WorkShiftRepository workShiftRepository;
     private final FloorRepository floorRepository;
-    private final LaneRepository laneRepository;
     private final StaffRepository staffRepository;
     private final AccountRepository accountRepository;
     private final AdminRepository adminRepository;
@@ -54,11 +53,9 @@ public class AssignmentServiceImpl implements AssignmentService {
         Admin admin = adminRepository.findByAccountId(adminAccount.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ admin tương ứng"));
 
-        // Validate floor & lane existence
+        // Validate floor existence
         Floor floor = floorRepository.findById(request.floorId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tầng: " + request.floorId()));
-        Lane lane = laneRepository.findById(request.laneId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy làn xe: " + request.laneId()));
         WorkShift shift = workShiftRepository.findById(request.shiftId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy ca trực: " + request.shiftId()));
         Staff staff = staffRepository.findById(request.staffId())
@@ -70,24 +67,17 @@ public class AssignmentServiceImpl implements AssignmentService {
             throw new RuntimeException("Tài khoản của nhân viên này hiện không hoạt động (Trạng thái: " + staffAccount.getStatus() + ")");
         }
 
-        // Check conflicts: Lane already assigned in this shift
-        Optional<StaffAssignment> laneConflict = staffAssignmentRepository
-                .findFirstByLaneIdAndWorkDateAndShiftIdAndStatusNot(request.laneId(), request.workDate(), request.shiftId(), "CANCELLED");
-        if (laneConflict.isPresent()) {
-            throw new RuntimeException("Vị trí/Làn xe này đã có nhân viên phụ trách trong ca này.");
-        }
 
         // Check conflicts: Staff already assigned to another position in this shift
         Optional<StaffAssignment> staffConflict = staffAssignmentRepository
                 .findFirstByStaffIdAndWorkDateAndShiftIdAndStatusNot(request.staffId(), request.workDate(), request.shiftId(), "CANCELLED");
         if (staffConflict.isPresent()) {
-            throw new RuntimeException("Nhân viên này đã được phân công trực ở vị trí khác trong cùng ca này.");
+            throw new RuntimeException("Nhân viên này đã được phân công trực ở tầng khác trong cùng ca trực này.");
         }
 
         StaffAssignment assignment = StaffAssignment.builder()
                 .workDate(request.workDate())
                 .shiftId(request.shiftId())
-                .laneId(request.laneId())
                 .floorId(request.floorId())
                 .staffId(request.staffId())
                 .status("ASSIGNED")
@@ -123,7 +113,6 @@ public class AssignmentServiceImpl implements AssignmentService {
         assignment.setStaffId(request.staffId());
         assignment.setNote(request.note());
         
-        // If it was ASSIGNED, keep it or check if we update status
         StaffAssignment saved = staffAssignmentRepository.saveAndFlush(assignment);
         return mapToResponse(saved);
     }
@@ -168,7 +157,6 @@ public class AssignmentServiceImpl implements AssignmentService {
 
     private StaffAssignmentResponse mapToResponse(StaffAssignment assignment) {
         WorkShift shift = workShiftRepository.findById(assignment.getShiftId()).orElse(null);
-        Lane lane = laneRepository.findById(assignment.getLaneId()).orElse(null);
         Floor floor = floorRepository.findById(assignment.getFloorId()).orElse(null);
         
         String staffCode = "";
@@ -194,10 +182,6 @@ public class AssignmentServiceImpl implements AssignmentService {
                 shift != null ? shift.getShiftCode() : "",
                 shift != null ? shift.getShiftName() : "",
                 shiftTime,
-                assignment.getLaneId(),
-                lane != null ? lane.getLaneCode() : "",
-                lane != null ? lane.getLaneName() : "",
-                lane != null ? lane.getLaneType() : "",
                 assignment.getFloorId(),
                 floor != null ? floor.getFloorCode() : "",
                 floor != null ? floor.getFloorName() : "",

@@ -5,7 +5,6 @@ import com.parking.pbms.dto.UpdateUserRequest;
 import com.parking.pbms.dto.UserResponse;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
-import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.UserManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -25,7 +24,6 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final RoleRepository roleRepository;
     private final AdminRepository adminRepository;
     private final StaffRepository staffRepository;
-    private final CustomerRepository customerRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -117,10 +115,6 @@ public class UserManagementServiceImpl implements UserManagementService {
                     staffRepository.save(p);
                 });
             } else if (roleName.equalsIgnoreCase("USER")) {
-                customerRepository.findByAccountId(accountId).ifPresent(p -> {
-                    p.setStatus("INACTIVE");
-                    customerRepository.save(p);
-                });
                 userRepository.findByAccountId(accountId).ifPresent(p -> {
                     p.setStatus("INACTIVE");
                     userRepository.save(p);
@@ -140,7 +134,6 @@ public class UserManagementServiceImpl implements UserManagementService {
                 staffRepository.findByAccountId(account.getAccountId()).ifPresent(staffRepository::delete);
             } else if (oldRole.equalsIgnoreCase("USER")) {
                 userRepository.findByAccountId(account.getAccountId()).ifPresent(userRepository::delete);
-                customerRepository.findByAccountId(account.getAccountId()).ifPresent(customerRepository::delete);
             }
         }
 
@@ -162,16 +155,8 @@ public class UserManagementServiceImpl implements UserManagementService {
             staff.setStatus(status);
             staffRepository.save(staff);
         } else if (newRole.equalsIgnoreCase("USER")) {
-            Customer customer = customerRepository.findByAccountId(account.getAccountId())
-                    .orElseGet(() -> Customer.builder().accountId(account.getAccountId()).build());
-            customer.setFullName(fullName);
-            customer.setEmail(email);
-            customer.setPhone(phone);
-            customer.setStatus(status);
-            customerRepository.saveAndFlush(customer);
-
             User user = userRepository.findByAccountId(account.getAccountId())
-                    .orElseGet(() -> User.builder().accountId(account.getAccountId()).customerId(customer.getCustomerId()).address("").build());
+                    .orElseGet(() -> User.builder().accountId(account.getAccountId()).address("").build());
             user.setFullName(fullName);
             user.setEmail(email != null ? email : "");
             user.setPhone(phone != null ? phone : "");

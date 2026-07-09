@@ -22,14 +22,11 @@ public class Card {
     @Column(name = "CardNo", insertable = false, updatable = false)
     private String cardNo;
 
-    @Column(name = "RFIDUID", length = 100)
-    private String rfidUid;
-
     @Column(name = "CardGroupID", nullable = false)
     private Integer cardGroupId;
 
-    @Column(name = "CustomerID")
-    private Integer customerId;
+    @Column(name = "AccountID")
+    private Integer accountId;
 
     @Column(name = "VehicleID")
     private Integer vehicleId;

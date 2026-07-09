@@ -18,8 +18,8 @@ public class Vehicle {
     @Column(name = "VehicleID")
     private Integer vehicleId;
 
-    @Column(name = "CustomerID")
-    private Integer customerId;
+    @Column(name = "AccountID")
+    private Integer accountId;
 
     @Column(name = "PlateNo", nullable = false, unique = true, length = 20)
     private String plateNo;

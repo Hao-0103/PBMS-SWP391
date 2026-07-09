@@ -5,7 +5,6 @@ import com.parking.pbms.dto.RegisterCardRequest;
 import com.parking.pbms.dto.RenewCardRequest;
 import com.parking.pbms.model.*;
 import com.parking.pbms.repository.*;
-import com.parking.pbms.repository.CustomerRepository;
 import com.parking.pbms.service.UserCardService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -27,7 +26,6 @@ import com.parking.pbms.config.VnPayConfig;
 public class UserCardServiceImpl implements UserCardService {
 
     private final AccountRepository accountRepository;
-    private final CustomerRepository customerRepository;
     private final CardRepository cardRepository;
     private final CardGroupRepository cardGroupRepository;
     private final VehicleRepository vehicleRepository;
@@ -44,10 +42,7 @@ public class UserCardServiceImpl implements UserCardService {
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản: " + username));
 
-        Customer customer = customerRepository.findByAccountId(account.getAccountId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng tương ứng với tài khoản: " + username));
-
-        List<Card> cards = cardRepository.findMonthlyAndDayCardsByCustomerId(customer.getCustomerId());
+        List<Card> cards = cardRepository.findMonthlyAndDayCardsByAccountId(account.getAccountId());
 
         return cards.stream()
                 .filter(card -> !"PENDING".equalsIgnoreCase(card.getStatus()) && !"INACTIVE".equalsIgnoreCase(card.getStatus()))
@@ -61,9 +56,6 @@ public class UserCardServiceImpl implements UserCardService {
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản: " + username));
 
-        Customer customer = customerRepository.findByAccountId(account.getAccountId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng tương ứng với tài khoản: " + username));
-
         CardGroup cardGroup = cardGroupRepository.findByGroupName(request.nhomThe())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhóm thẻ: " + request.nhomThe()));
 
@@ -72,14 +64,14 @@ public class UserCardServiceImpl implements UserCardService {
         Vehicle vehicle = vehicleRepository.findByPlateNo(plateNo).orElse(null);
         if (vehicle == null) {
             vehicle = Vehicle.builder()
-                    .customerId(customer.getCustomerId())
+                    .accountId(account.getAccountId())
                     .plateNo(plateNo)
                     .vehicleType(cardGroup.getVehicleType())
                     .status("ACTIVE")
                     .build();
         } else {
             // Update owner and activate if it was inactives
-            vehicle.setCustomerId(customer.getCustomerId());
+            vehicle.setAccountId(account.getAccountId());
             vehicle.setStatus("ACTIVE");
         }
         vehicle = vehicleRepository.save(vehicle);
@@ -108,17 +100,10 @@ public class UserCardServiceImpl implements UserCardService {
             expireAt = startDate.plusMonths(request.duration());
         }
 
-        // Generate unique RFIDUID
-        String rfidUid;
-        do {
-            rfidUid = String.format("RFID%08d", random.nextInt(100000000));
-        } while (cardRepository.existsByRfidUid(rfidUid));
-
         // Create Card
         Card card = Card.builder()
-                .rfidUid(rfidUid)
                 .cardGroupId(cardGroup.getCardGroupId())
-                .customerId(customer.getCustomerId())
+                .accountId(account.getAccountId())
                 .vehicleId(vehicle.getVehicleId())
                 .preferredFloorID(preferredFloorId)
                 .registeredAt(LocalDate.now())
@@ -185,13 +170,10 @@ public class UserCardServiceImpl implements UserCardService {
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản: " + username));
 
-        Customer customer = customerRepository.findByAccountId(account.getAccountId())
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy khách hàng tương ứng với tài khoản: " + username));
-
         Card card = cardRepository.findById(request.cardId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy thẻ với ID: " + request.cardId()));
 
-        if (!card.getCustomerId().equals(customer.getCustomerId())) {
+        if (!card.getAccountId().equals(account.getAccountId())) {
             throw new RuntimeException("Thẻ này không thuộc quyền sở hữu của bạn.");
         }
 
@@ -270,6 +252,17 @@ public class UserCardServiceImpl implements UserCardService {
     public List<CardGroup> getActiveCardGroups() {
         return cardGroupRepository.findAll().stream()
                 .filter(cg -> cg.getStatus().equalsIgnoreCase("ACTIVE") && !cg.getTicketType().equalsIgnoreCase("SINGLE"))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MonthlyCardResponse> getCardsByAccountId(Integer accountId) {
+        List<Card> cards = cardRepository.findMonthlyAndDayCardsByAccountId(accountId);
+
+        return cards.stream()
+                .filter(card -> !"PENDING".equalsIgnoreCase(card.getStatus()) && !"INACTIVE".equalsIgnoreCase(card.getStatus()))
+                .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
 

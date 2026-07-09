@@ -15,7 +15,7 @@ public interface CardHistoryRepository extends JpaRepository<CardHistory, Long> 
            "LEFT JOIN Card c ON ch.cardId = c.cardId " +
            "LEFT JOIN CardGroup cg ON c.cardGroupId = cg.cardGroupId " +
            "LEFT JOIN Vehicle v ON c.vehicleId = v.vehicleId " +
-           "LEFT JOIN Customer cu ON c.customerId = cu.customerId " +
+           "LEFT JOIN User cu ON c.accountId = cu.accountId " +
            "LEFT JOIN Account a ON ch.performedBy = a.accountId " +
            "ORDER BY ch.actionAt DESC")
     List<Object[]> findAllHistoryDetails();

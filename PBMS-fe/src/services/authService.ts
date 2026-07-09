@@ -1,5 +1,5 @@
 import { UserRole } from "../app/components/Login";
-import { safeJson } from "../utils/apiHelper";
+import { safeJson, authFetch } from "../utils/apiHelper";
 
 export interface LoginResponseData {
   accessToken: string;
@@ -38,20 +38,20 @@ export const authService = {
     const { data } = result;
     const storage = remember ? localStorage : sessionStorage;
 
-    // Ensure we do not keep a stale token/username in the other storage.
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("username");
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("userRole");
-    sessionStorage.removeItem("userName");
-    sessionStorage.removeItem("username");
+    // Clear stale tokens from both storages
+    ["authToken", "userRole", "userName", "username", "tokenExpiry"].forEach(key => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
+
+    // Calculate absolute expiry timestamp
+    const expiryAt = Date.now() + data.expiresInMs;
 
     storage.setItem("authToken", data.accessToken);
     storage.setItem("userRole", data.role.toLowerCase());
     storage.setItem("userName", data.fullName);
     storage.setItem("username", data.username);
+    storage.setItem("tokenExpiry", String(expiryAt));
 
     return {
       role: data.role.toLowerCase() as UserRole,
@@ -60,19 +60,14 @@ export const authService = {
   },
 
   logout(): void {
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userRole");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("username");
-
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("userRole");
-    sessionStorage.removeItem("userName");
-    sessionStorage.removeItem("username");
+    ["authToken", "userRole", "userName", "username", "tokenExpiry"].forEach(key => {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    });
   },
 
   getCurrentUser(): { role: UserRole; name: string } | null {
-    const token = this.getStoredValue("authToken");
+    const token = this.getToken();
     const role = this.getStoredValue("userRole");
     const name = this.getStoredValue("userName");
 
@@ -86,7 +81,22 @@ export const authService = {
   },
 
   getToken(): string | null {
-    return this.getStoredValue("authToken");
+    const token = this.getStoredValue("authToken");
+    if (!token) return null;
+
+    // Check expiry
+    const expiryStr = this.getStoredValue("tokenExpiry");
+    if (expiryStr) {
+      const expiry = parseInt(expiryStr, 10);
+      if (Date.now() >= expiry) {
+        // Token expired — clean up and signal session expiry
+        this.logout();
+        window.dispatchEvent(new Event("session:expired"));
+        return null;
+      }
+    }
+
+    return token;
   },
 
   getUsername(): string | null {
@@ -98,19 +108,9 @@ export const authService = {
   },
 
   async getProfile(): Promise<UserProfile> {
-    const token = this.getToken();
-    const response = await fetch(`${API_URL}/profile`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/profile`);
     const result: ApiResponse<UserProfile> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải thông tin hồ sơ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải thông tin hồ sơ.");
     return result.data;
   },
 
@@ -122,38 +122,22 @@ export const authService = {
     newPassword?: string;
     oldPassword?: string;
   }): Promise<UserProfile> {
-    const token = this.getToken();
-    const response = await fetch(`${API_URL}/profile`, {
+    const response = await authFetch(`${API_URL}/profile`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<UserProfile> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể cập nhật hồ sơ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể cập nhật hồ sơ.");
     return result.data;
   },
 
   async confirmPassword(password: string): Promise<void> {
-    const token = this.getToken();
-    const response = await fetch(`${API_URL}/profile/confirm-password`, {
+    const response = await authFetch(`${API_URL}/profile/confirm-password`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify({ password })
     });
-
     const result: ApiResponse<null> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Mat khau hien tai khong chinh xac.");
-    }
+    if (!response.ok) throw new Error(result.message || "Mật khẩu hiện tại không chính xác.");
   },
 
   async register(payload: any): Promise<void> {

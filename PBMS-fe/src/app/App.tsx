@@ -47,6 +47,31 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [verifyStatus, setVerifyStatus] = useState<{ success: boolean; message: string } | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(null);
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState<string | null>(null);
+
+  // Listen for session expiry (token expired or 401 from any API)
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      setAuth(null);
+      setSessionExpiredMsg("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+    };
+    window.addEventListener("session:expired", handleSessionExpired);
+    return () => window.removeEventListener("session:expired", handleSessionExpired);
+  }, []);
+
+  // Đồng bộ trạng thái đăng nhập/đăng xuất/đổi tài khoản giữa các tab
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "authToken" || e.key === "userRole") {
+        const currentUser = authService.getCurrentUser();
+        setAuth(currentUser);
+        setScreen("dashboard"); // Reset về màn hình chính khi đổi session
+        setSessionExpiredMsg(null);
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -82,10 +107,10 @@ export default function App() {
   if (!auth) {
     return (
       <Login
-        onLogin={(role, name) => setAuth({ role, name })}
-        initialVerifyStatus={verifyStatus}
+        onLogin={(role, name) => { setAuth({ role, name }); setSessionExpiredMsg(null); }}
+        initialVerifyStatus={sessionExpiredMsg ? { success: false, message: sessionExpiredMsg } : verifyStatus}
         initialResetToken={resetToken}
-        onClearVerifyStatus={() => setVerifyStatus(null)}
+        onClearVerifyStatus={() => { setVerifyStatus(null); setSessionExpiredMsg(null); }}
         onClearResetToken={() => setResetToken(null)}
       />
     );

@@ -22,8 +22,7 @@ public class StaffAssignment {
     @Column(name = "StaffID")
     private Integer staffId;
 
-    @Column(name = "LaneID", nullable = false)
-    private Integer laneId;
+
 
     @Column(name = "FloorID", nullable = false)
     private Integer floorId;
