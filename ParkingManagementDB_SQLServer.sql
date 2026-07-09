@@ -1,8 +1,3 @@
-SET QUOTED_IDENTIFIER ON;
-SET ANSI_NULLS ON;
-SET ANSI_PADDING ON;
-GO
-
 USE master;
 GO
 
@@ -432,7 +427,7 @@ BEGIN
     CREATE TABLE dbo.Payments (
         PaymentID         BIGINT IDENTITY(1,1) PRIMARY KEY,
         PaymentNo         AS ('PMT' + RIGHT('000000' + CONVERT(VARCHAR(20), PaymentID), 6)) PERSISTED,
-        PayerAccountID    INT NULL,
+        PayerAccountID    INT NOT NULL,
         TicketID          BIGINT NULL,
         CardID            INT NULL,
         Amount            DECIMAL(18,2) NOT NULL,
@@ -750,10 +745,6 @@ BEGIN
     INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000003', 1);
     INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000004', 1);
     INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000005', 1);
-    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000006', 1);
-    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000007', 1);
-    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000008', 1);
-    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000009', 1);
 END;
 GO
 
