@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getLocalTodayStr } from "../../../utils/dateUtils";
 import { Calendar, CheckCircle, Car } from "lucide-react";
 import { cls } from "../common/ui";
 
@@ -13,11 +14,11 @@ interface Slot {
 }
 
 const today = new Date();
-const todayStr = today.toISOString().split("T")[0];
+const todayStr = getLocalTodayStr();
 const nextDays = Array.from({ length: 7 }, (_, i) => {
   const d = new Date(today);
   d.setDate(today.getDate() + i);
-  return d.toISOString().split("T")[0];
+  return d.toLocaleDateString("en-CA");
 });
 
 const MONTHLY_CARDS = [

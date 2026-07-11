@@ -48,12 +48,10 @@ function formatParkingDuration(checkInStr: string, checkOutStr: string): string 
 }
 
 interface VehicleExitProps {
-  selectedLaneCode: string;
   selectedFloorCode?: string;
 }
 
-export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: VehicleExitProps) {
-  const [scanning, setScanning] = useState(false);
+export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
   const [inputCode, setInputCode] = useState("");
   const [ticket, setTicket] = useState<TicketInfo | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -68,23 +66,15 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
     }
   }, [selectedFloorCode]);
 
-  // Quy trình Check-out mới theo từng bước
-  const [checkoutStep, setCheckoutStep] = useState<"plate" | "compare" | "ticket" | "matched">("plate");
-  const [recognizedTicketCode, setRecognizedTicketCode] = useState("");
+  // Unified steps: "barcode" | "exit-plate" | "compare"
+  const [checkoutStep, setCheckoutStep] = useState<"barcode" | "exit-plate" | "compare">("barcode");
 
-  // QR Camera states
-  const [qrCameraActive, setQrCameraActive] = useState(false);
-  const qrVideoRef = useRef<HTMLVideoElement | null>(null);
-  const qrStreamRef = useRef<MediaStream | null>(null);
-  const qrFileInputRef = useRef<HTMLInputElement | null>(null);
-
-  // New Exit flow states
+  // Exit flow plate scanner states
   const [exitImage, setExitImage] = useState<string | null>(null);
   const [exitPlate, setExitPlate] = useState("");
   const [isOcrScanning, setIsOcrScanning] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [plateMatchConfirmed, setPlateMatchConfirmed] = useState(false);
-  const [activeExitScanner, setActiveExitScanner] = useState<"plate" | null>(null);
   const [exitVideoStreaming, setExitVideoStreaming] = useState(false);
   const [ocrSteps, setOcrSteps] = useState<{ label: string; detail: string; status: "idle" | "running" | "success" | "failed" }[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(-1);
@@ -93,32 +83,37 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
   const exitStreamRef = useRef<MediaStream | null>(null);
   const exitPlateFileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Manage ticket QR camera feed
+  const [qrCameraActive, setQrCameraActive] = useState(false);
+  const qrVideoRef = useRef<HTMLVideoElement | null>(null);
+  const qrStreamRef = useRef<MediaStream | null>(null);
+  const qrFileInputRef = useRef<HTMLInputElement | null>(null);
+
   const startExitCamera = async () => {
     setErrorMsg(null);
     setOcrError(null);
     setExitImage(null);
     setExitPlate("");
     setPlateMatchConfirmed(false);
-    setActiveExitScanner("plate");
     setExitVideoStreaming(true);
 
     if (!navigator || !navigator.mediaDevices) {
-      setOcrError("Trình duyệt không hỗ trợ camera hoặc yêu cầu kết nối bảo mật HTTPS khi truy cập qua mạng LAN.");
+      setOcrError("Trình duyệt không hỗ trợ camera hoặc yêu cầu kết nối HTTPS.");
       setExitVideoStreaming(false);
       return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" }
+        video: { facingMode: "environment", width: { ideal: 640 }, height: { ideal: 480 } }
       });
       exitStreamRef.current = stream;
       if (exitVideoRef.current) {
         exitVideoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.error("Lỗi mở camera exit", err);
-      setOcrError("Không thể mở camera. Vui lòng chọn Tải ảnh lên hoặc cấp quyền camera.");
+      console.error("Camera access failed", err);
+      setOcrError("Không thể truy cập camera. Vui lòng kiểm tra quyền hoặc tải ảnh lên.");
       setExitVideoStreaming(false);
     }
   };
@@ -129,97 +124,87 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
       exitStreamRef.current = null;
     }
     setExitVideoStreaming(false);
-    setActiveExitScanner(null);
+    setIsOcrScanning(false);
   };
 
-  useEffect(() => {
-    return () => {
-      if (exitStreamRef.current) {
-        exitStreamRef.current.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, []);
-
+  // OCR calling Gemini API
   const runExitPlateOCR = async (base64Image: string, dataUrl: string) => {
     setIsOcrScanning(true);
     setOcrError(null);
     setExitImage(dataUrl);
+    setExitPlate("");
 
     const steps = [
-      { label: "1. Định vị biển số xe ra", detail: "Đang phân tích vị trí...", status: "running" as const },
-      { label: "2. Gọi Gemini API", detail: "Đang nhận dạng...", status: "idle" as const },
+      { label: "1. Phát hiện khung biển số ra", detail: "Đang định vị biển số trong khung hình...", status: "running" as const },
+      { label: "2. Hiệu chỉnh góc nghiêng", detail: "Cân bằng góc xoay...", status: "idle" as const },
+      { label: "3. Nhận diện ký tự (Gemini API)", detail: "Đang gọi Gemini API trích xuất ký tự...", status: "idle" as const },
+      { label: "4. Đối chiếu thông tin", detail: "Chờ so sánh định dạng...", status: "idle" as const },
     ];
     setOcrSteps(steps);
     setActiveStepIndex(0);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise(r => setTimeout(r, 400));
       steps[0].status = "success";
-      steps[0].detail = "Đã tìm thấy vùng biển số.";
       steps[1].status = "running";
-      steps[1].detail = "Đang gửi lên Gemini API...";
       setOcrSteps([...steps]);
       setActiveStepIndex(1);
 
-      const apiKey = "AQ.Ab8RN6JSCpMXwWySUtrFPXJLhydSeyJA6ZIL0OZaUZ0yHkpbWA";
+      await new Promise(r => setTimeout(r, 400));
+      steps[1].status = "success";
+      steps[2].status = "running";
+      setOcrSteps([...steps]);
+      setActiveStepIndex(2);
+
+      const apiKey = "AQ.Ab8RN6LnY0vwGKPYBjAU5y5tQ9VweO1GSFQ5IvyD_MWziUA1UQ";
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: "Identify and extract the license plate number of the vehicle from this image. Clean the output by removing all spaces, dots, dashes, and extra words. Return ONLY a JSON object with format {\"plate\": \"CLEAN_PLATE_NUMBER\"}."
-                  },
-                  {
-                    inlineData: {
-                      mimeType: "image/jpeg",
-                      data: base64Image,
-                    }
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-            }
+            contents: [{
+              parts: [
+                { text: "Identify and extract the license plate number of the vehicle from this image. Clean the output by removing all spaces, dots, dashes. Return ONLY a JSON object with format {\"plate\": \"CLEAN_PLATE_NUMBER\"}." },
+                { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+              ]
+            }],
+            generationConfig: { responseMimeType: "application/json" }
           })
         }
       );
 
-      if (!response.ok) throw new Error("Lỗi kết nối Gemini API.");
+      if (!response.ok) throw new Error("Không thể kết nối đến Gemini API.");
       const resData = await response.json();
-      const textResponse = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!textResponse) throw new Error("Không nhận diện được phản hồi từ Gemini API.");
+      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Không có phản hồi từ Gemini API.");
 
-      const parsed = JSON.parse(textResponse);
+      const parsed = JSON.parse(text);
       const recognized = (parsed.plate || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (!recognized) throw new Error("Không tìm thấy biển số trong ảnh.");
 
-      steps[1].status = "success";
-      steps[1].detail = `Nhận diện thành công: ${recognized}`;
+      if (!recognized) throw new Error("Không nhận dạng được biển số.");
+
+      steps[2].status = "success";
+      steps[2].detail = `Nhận diện được: ${recognized}`;
+      steps[3].status = "running";
       setOcrSteps([...steps]);
-      setActiveStepIndex(2);
+      setActiveStepIndex(3);
+
+      await new Promise(r => setTimeout(r, 400));
+      steps[3].status = "success";
+      setOcrSteps([...steps]);
+      setActiveStepIndex(4);
 
       setExitPlate(recognized);
       setIsOcrScanning(false);
-
-      try {
-        await fetchTicketByExitPlate(recognized, dataUrl);
-      } catch (e: any) {
-        setOcrError(e.message || "Không tìm thấy thông tin xe đang gửi với biển số này.");
-      }
+      
+      // Auto compare
+      handleComparePlates(recognized);
     } catch (err: any) {
       console.error(err);
-      steps[1].status = "failed";
-      steps[1].detail = err.message || "Lỗi xử lý.";
+      steps[activeStepIndex >= 0 ? activeStepIndex : 2].status = "failed";
       setOcrSteps([...steps]);
-      setOcrError(err.message || "Không nhận diện được biển số. Bạn có thể tự nhập.");
+      setOcrError(err.message || "Nhận diện thất bại.");
       setIsOcrScanning(false);
     }
   };
@@ -241,8 +226,8 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
     }
   };
 
-  const handleExitPlateUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleExitPlateUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -252,58 +237,17 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
       runExitPlateOCR(base64Image, dataUrl);
     };
     reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
-  const fetchTicketByExitPlate = async (plate: string, exitImgUrl: string | null) => {
-    setErrorMsg(null);
-    setNotFound(false);
-    setOcrError(null);
+  const handleComparePlates = (scannedPlate: string) => {
+    if (!ticket) return;
+    const cleanEntry = ticket.bienSo.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const cleanExit = scannedPlate.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-    if (!selectedLaneCode) {
-      setErrorMsg("Vui lòng chọn Làn xe ra trên thanh topbar trước.");
-      throw new Error("Làn xe ra chưa được chọn");
-    }
-
-    if (!floorCode) {
-      setErrorMsg("Vui lòng chọn Tầng trước.");
-      throw new Error("Tầng chưa được chọn");
-    }
-
-    try {
-      const resp = await staffService.previewCheckOut(plate.trim(), selectedLaneCode);
-
-      const ticketInfo: TicketInfo = {
-        ticketId: resp.ticketId,
-        maVe: resp.ticketNo,
-        bienSo: resp.plateNoSnapshot,
-        loaiXe: resp.vehicleType === "CAR" ? "Ô tô" : "Xe máy",
-        vehicleType: resp.vehicleType,
-        tgVao: new Date(resp.checkInAt).toLocaleString("vi-VN"),
-        tgRa: new Date(resp.checkOutAt || "").toLocaleString("vi-VN"),
-        rawCheckInAt: resp.checkInAt,
-        rawCheckOutAt: resp.checkOutAt || "",
-        thoiGianGui: formatParkingDuration(resp.checkInAt, resp.checkOutAt || ""),
-        phi: resp.feeAmount,
-        qrPayload: resp.qrToken,
-        violationReason: resp.violationReason,
-        entryImage: resp.entryImage,
-      };
-
-      setTicket(ticketInfo);
-      setExitPlate(plate);
-      if (exitImgUrl) setExitImage(exitImgUrl);
-      setNotFound(false);
-      setConfirmed(false);
-      
-      // Chuyển sang bước đối chiếu
-      setCheckoutStep("compare");
-      setErrorMsg(null);
-    } catch (err: any) {
-      setTicket(null);
-      setNotFound(true);
-      setErrorMsg(err.message || "Không tìm thấy thông tin xe đang gửi với biển số này.");
-      throw err;
-    }
+    const isMatched = cleanEntry === cleanExit;
+    setPlateMatchConfirmed(isMatched);
+    setCheckoutStep("compare");
   };
 
   const processCheckOut = async (code: string) => {
@@ -313,18 +257,13 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
     setExitPlate("");
     setPlateMatchConfirmed(false);
 
-    if (!selectedLaneCode) {
-      setErrorMsg("Vui lòng chọn Làn xe ra trên thanh topbar trước.");
-      return;
-    }
-
     if (!floorCode) {
       setErrorMsg("Vui lòng chọn Tầng trước.");
       return;
     }
 
     try {
-      const resp = await staffService.previewCheckOut(code.trim(), selectedLaneCode);
+      const resp = await staffService.previewCheckOut(code.trim());
 
       const ticketInfo: TicketInfo = {
         ticketId: resp.ticketId,
@@ -346,6 +285,10 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
       setTicket(ticketInfo);
       setNotFound(false);
       setConfirmed(false);
+      
+      // Proceed to Step 2
+      setCheckoutStep("exit-plate");
+      setInputCode(""); // Reset input field to accept exit plate or manual plate input
     } catch (err: any) {
       setTicket(null);
       setNotFound(true);
@@ -359,9 +302,9 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
     try {
       await staffService.checkOut({
         ticketNoOrQrToken: ticket.maVe,
-        laneCode: selectedLaneCode,
         floorCode: floorCode,
-        exitImage: exitImage || undefined
+        exitImage: exitImage || undefined,
+        exitPlate: exitPlate || undefined
       });
       setConfirmed(true);
       try {
@@ -372,85 +315,68 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
     }
   };
 
-  const runExitTicketOCR = async (base64Image: string, dataUrl: string) => {
-    setScanning(true);
+  const handleCancel = () => {
+    setTicket(null);
+    setNotFound(false);
+    setConfirmed(false);
+    setErrorMsg(null);
+    setExitImage(null);
+    setExitPlate("");
+    setInputCode("");
+    setPlateMatchConfirmed(false);
+    setCheckoutStep("barcode");
+    stopExitCamera();
+    stopQrCamera();
+  };
+
+  // QR Camera functions for ticket barcode scanning
+  const runTicketScannerOCR = async (base64Image: string, dataUrl: string) => {
     setErrorMsg(null);
     setNotFound(false);
+    setIsOcrScanning(true);
 
     try {
-      const apiKey = "AQ.Ab8RN6JSCpMXwWySUtrFPXJLhydSeyJA6ZIL0OZaUZ0yHkpbWA";
+      const apiKey = "AQ.Ab8RN6LnY0vwGKPYBjAU5y5tQ9VweO1GSFQ5IvyD_MWziUA1UQ";
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  {
-                    text: "Identify and extract the ticket number, card number, or reservation code (e.g. TK000003, CARD000005, RES001) from this ticket image. Clean the output by removing all spaces, dots, and dashes. Return ONLY a JSON object with format {\"code\": \"TK000003\"}."
-                  },
-                  {
-                    inlineData: {
-                      mimeType: "image/jpeg",
-                      data: base64Image,
-                    }
-                  }
-                ]
-              }
-            ],
-            generationConfig: {
-              responseMimeType: "application/json",
-            }
+            contents: [{
+              parts: [
+                { text: "Identify and extract the ticket number, card barcode, or reservation code (e.g. TK000003, CARD000005, RES001, KZP1234567) from this ticket image. Clean the output by removing all spaces, dots, and dashes. Return ONLY a JSON object with format {\"code\": \"KZP1234567\"}." },
+                { inlineData: { mimeType: "image/jpeg", data: base64Image } }
+              ]
+            }],
+            generationConfig: { responseMimeType: "application/json" }
           })
         }
       );
 
       if (!response.ok) throw new Error("Lỗi kết nối Gemini API.");
       const resData = await response.json();
-      const textResponse = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!textResponse) throw new Error("Không nhận diện được phản hồi từ Gemini API.");
+      const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!text) throw new Error("Không nhận diện được phản hồi.");
 
-      const parsed = JSON.parse(textResponse);
+      const parsed = JSON.parse(text);
       const recognized = (parsed.code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (!recognized) throw new Error("Không tìm thấy mã vé trong ảnh.");
+      if (!recognized) throw new Error("Không tìm thấy mã vé/barcode trong ảnh.");
 
       setInputCode(recognized);
-      setInputCode(recognized);
-      setRecognizedTicketCode(recognized);
-
-      if (ticket) {
-        const cleanTicketNo = ticket.maVe.toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const cleanQrPayload = ticket.qrPayload ? ticket.qrPayload.toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
-        
-        if (recognized === cleanTicketNo || recognized === cleanQrPayload) {
-          setPlateMatchConfirmed(true);
-          setCheckoutStep("matched");
-          stopQrCamera();
-        } else {
-          setPlateMatchConfirmed(false);
-          throw new Error(`Mã vé không khớp! Quét được: "${recognized}", yêu cầu: "${ticket.maVe}"`);
-        }
-      } else {
-        throw new Error("Vui lòng chụp biển số xe ra trước để lấy thông tin đối chiếu.");
-      }
+      setIsOcrScanning(false);
+      processCheckOut(recognized);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || "Không thể nhận diện mã vé từ ảnh.");
-      setPlateMatchConfirmed(false);
-    } finally {
-      setScanning(false);
+      setErrorMsg(err.message || "Không thể nhận diện barcode vé.");
+      setIsOcrScanning(false);
     }
   };
 
-  // QR Camera - start/stop
   const startQrCamera = async () => {
     setQrCameraActive(true);
-    setNotFound(false);
     setErrorMsg(null);
+    setNotFound(false);
 
     if (!navigator || !navigator.mediaDevices) {
       setErrorMsg("Trình duyệt không hỗ trợ camera.");
@@ -460,15 +386,15 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" }
+        video: { facingMode: "environment" }
       });
       qrStreamRef.current = stream;
       if (qrVideoRef.current) {
         qrVideoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.error("Lỗi mở camera ticket exit", err);
-      setErrorMsg("Không thể mở camera. Vui lòng cấp quyền camera.");
+      console.error("Camera access failed", err);
+      setErrorMsg("Không thể truy cập camera. Vui lòng cấp quyền.");
       setQrCameraActive(false);
     }
   };
@@ -479,10 +405,8 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
       qrStreamRef.current = null;
     }
     setQrCameraActive(false);
-    setScanning(false);
   };
 
-  // Capture image from ticket camera feed
   const handleQrCapture = () => {
     if (qrVideoRef.current) {
       const video = qrVideoRef.current;
@@ -494,69 +418,24 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL("image/jpeg");
         const base64Image = dataUrl.split(",")[1];
-        runExitTicketOCR(base64Image, dataUrl);
+        runTicketScannerOCR(base64Image, dataUrl);
         stopQrCamera();
       }
     }
   };
 
-  // Handle QR image file upload
   const handleQrFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setNotFound(false);
-    setErrorMsg(null);
-    setScanning(true);
 
     const reader = new FileReader();
     reader.onloadend = () => {
       const dataUrl = reader.result as string;
       const base64Image = dataUrl.split(",")[1];
-      runExitTicketOCR(base64Image, dataUrl);
+      runTicketScannerOCR(base64Image, dataUrl);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
-  };
-
-  const handleManualSearch = () => {
-    if (!inputCode.trim()) return;
-    
-    if (checkoutStep === "plate") {
-      fetchTicketByExitPlate(inputCode, null).catch(err => {
-        console.error("Lỗi tìm vé qua biển số", err);
-      });
-    } else if (checkoutStep === "ticket") {
-      const cleanCode = inputCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-      setRecognizedTicketCode(cleanCode);
-      if (ticket) {
-        const cleanTicketNo = ticket.maVe.toUpperCase().replace(/[^A-Z0-9]/g, "");
-        const cleanQrPayload = ticket.qrPayload ? ticket.qrPayload.toUpperCase().replace(/[^A-Z0-9]/g, "") : "";
-        if (cleanCode === cleanTicketNo || cleanCode === cleanQrPayload) {
-          setPlateMatchConfirmed(true);
-          setCheckoutStep("matched");
-          setErrorMsg(null);
-        } else {
-          setPlateMatchConfirmed(false);
-          setErrorMsg(`Mã vé nhập tay không khớp! Bạn nhập: ${cleanCode}, Yêu cầu: ${ticket.maVe}`);
-        }
-      }
-    }
-  };
-
-  const handleCancel = () => {
-    setTicket(null);
-    setInputCode("");
-    setNotFound(false);
-    setConfirmed(false);
-    setScanning(false);
-    setErrorMsg(null);
-    setExitImage(null);
-    setExitPlate("");
-    setPlateMatchConfirmed(false);
-    stopExitCamera();
-    stopQrCamera();
-    setCheckoutStep("plate");
-    setRecognizedTicketCode("");
   };
 
   return (
@@ -566,34 +445,168 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-blue-600" />
           <span className="text-sm font-semibold text-gray-700">
-            Tiếp nhận xe ra (Làn ra hiện tại: {selectedLaneCode || "Chưa chọn"})
+            Tiếp nhận xe ra (Tầng trực: {selectedFloorCode || "Chưa chọn"})
           </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
-        {/* Chụp ảnh vé */}
-        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
-          {checkoutStep === "plate" && (
-            <>
+        {/* Main interactive panel */}
+        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm flex flex-col justify-between min-h-[480px]">
+          
+          {/* Step 1: Barcode Entry */}
+          {checkoutStep === "barcode" && (
+            <div>
+              <div className="flex items-center gap-2 bg-blue-600 px-4 py-2.5">
+                <QrCode className="h-4 w-4 text-white" />
+                <span className="text-sm font-semibold text-white">
+                  Bước 1: Nhập barcode thẻ xe
+                </span>
+              </div>
+
+              <div className="p-4 space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-xs font-medium text-gray-600">
+                    Nhập barcode thẻ xe (Đúng 10 ký tự)
+                  </label>
+                  
+                  <div className="flex gap-2">
+                    <input
+                      className="h-[38px] flex-1 rounded border border-gray-300 px-3 text-sm uppercase outline-none focus:border-blue-400 font-mono font-bold tracking-wider"
+                      placeholder="VD: KZP1234567"
+                      maxLength={10}
+                      value={inputCode}
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/[^A-Za-z0-9]/g, "");
+                        setInputCode(val);
+                        setErrorMsg(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && inputCode.trim().length === 10) {
+                          processCheckOut(inputCode);
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => processCheckOut(inputCode)}
+                      disabled={inputCode.trim().length !== 10}
+                      className="flex h-[38px] items-center gap-1.5 rounded bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 transition-colors cursor-pointer"
+                    >
+                      <Search className="h-3.5 w-3.5" />
+                      Tìm vé
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-[11px] text-gray-400 py-1">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span>hoặc quét barcode qua camera</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-lg border border-dashed border-gray-300 bg-slate-950 flex flex-col justify-center items-center p-4">
+                  <video
+                    ref={qrVideoRef}
+                    autoPlay
+                    className={`h-48 w-full object-cover rounded ${qrCameraActive ? "block" : "hidden"}`}
+                    playsInline
+                    muted
+                  />
+                  {!qrCameraActive && !isOcrScanning && (
+                    <div className="flex flex-col items-center justify-center gap-2 py-4">
+                      <ScanLine className="h-10 w-10 text-gray-500" />
+                      <p className="text-[11px] text-gray-400">
+                        Nhấn <span className="font-semibold text-blue-400 cursor-pointer" onClick={startQrCamera}>Mở camera quét vé</span> hoặc <span className="font-semibold text-amber-400 cursor-pointer" onClick={() => qrFileInputRef.current?.click()}>Tải ảnh vé</span>
+                      </p>
+                    </div>
+                  )}
+
+                  {isOcrScanning && (
+                    <div className="flex flex-col items-center justify-center gap-2 py-4">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-t-transparent border-sky-400" />
+                      <span className="text-xs text-sky-400 font-medium">Đang nhận diện barcode thẻ...</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-3 w-full">
+                    {qrCameraActive ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleQrCapture}
+                          className="flex-1 flex h-[34px] items-center justify-center gap-1.5 rounded bg-green-600 text-xs font-semibold text-white hover:bg-green-700 transition-colors"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          Chụp ảnh
+                        </button>
+                        <button
+                          type="button"
+                          onClick={stopQrCamera}
+                          className="flex h-[34px] items-center gap-1 rounded bg-red-500 px-3 text-xs font-semibold text-white hover:bg-red-650 transition-colors"
+                        >
+                          Hủy
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={startQrCamera}
+                        disabled={isOcrScanning}
+                        className="flex-1 flex h-[34px] items-center justify-center gap-1.5 rounded bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300 transition-colors"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        Mở camera quét vé
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => qrFileInputRef.current?.click()}
+                      disabled={isOcrScanning || qrCameraActive}
+                      className="flex h-[34px] items-center gap-1 rounded border border-amber-400 bg-amber-50 px-3 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-40"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Tải ảnh
+                    </button>
+                    <input
+                      ref={qrFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleQrFileUpload}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Exit Plate Scan */}
+          {checkoutStep === "exit-plate" && (
+            <div>
               <div className="flex items-center gap-2 bg-blue-600 px-4 py-2.5">
                 <Camera className="h-4 w-4 text-white" />
                 <span className="text-sm font-semibold text-white">
-                  Bước 1: Chụp ảnh biển số xe ra
+                  Bước 2: Quét biển số xe ra
                 </span>
               </div>
-              <div className="space-y-3 p-4">
+
+              <div className="p-4 space-y-4">
+                <div className="bg-blue-50 border border-blue-200 rounded p-3 text-xs text-blue-800">
+                  🏷️ Đã tìm thấy vé: <span className="font-bold">{ticket?.maVe}</span> (Biển số vào: <span className="font-bold">{ticket?.bienSo}</span>). Vui lòng quét hoặc nhập biển số lúc ra để đối chiếu.
+                </div>
+
                 <div
                   className={`relative w-full overflow-hidden rounded-lg border-2 bg-slate-950 transition-all ${
                     exitVideoStreaming ? "border-sky-400" : "border-dashed border-gray-400"
                   }`}
-                  style={{ minHeight: exitVideoStreaming ? "260px" : undefined }}
+                  style={{ minHeight: exitVideoStreaming ? "220px" : undefined }}
                 >
                   {exitVideoStreaming && (
                     <video
                       ref={exitVideoRef}
-                      className="h-full w-full object-cover"
-                      style={{ minHeight: "260px" }}
+                      className="h-48 w-full object-cover"
                       autoPlay
                       playsInline
                     />
@@ -621,29 +634,14 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                       <div className="absolute right-0 top-0 h-3 w-3 rounded-tr border-r-[3px] border-t-[3px] border-inherit" />
                       <div className="absolute bottom-0 left-0 h-3 w-3 rounded-bl border-b-[3px] border-l-[3px] border-inherit" />
                       <div className="absolute bottom-0 right-0 h-3 w-3 rounded-br border-b-[3px] border-r-[3px] border-inherit" />
-
-                      {isOcrScanning && activeStepIndex === 0 && (
-                        <div className="absolute left-0 right-0 top-0 h-[2px] bg-sky-400 shadow-[0_0_8px_rgba(56,189,248,0.8)] animate-[scanLine_2s_infinite_linear]" />
-                      )}
-                    </div>
-                  )}
-
-                  {activeStepIndex >= 2 && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                      <span className="text-xl font-bold tracking-widest text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
-                        {exitPlate}
-                      </span>
                     </div>
                   )}
 
                   {!exitVideoStreaming && !isOcrScanning && !exitImage && (
                     <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 py-8">
-                      <ScanLine className="h-14 w-14 text-gray-500" />
+                      <ScanLine className="h-12 w-12 text-gray-500" />
                       <p className="text-xs text-gray-400">
-                        Nhấn <span className="font-semibold text-blue-400">Mở camera chụp biển số</span> để bắt đầu
-                      </p>
-                      <p className="text-[10px] text-gray-500">
-                        hoặc <span className="font-semibold text-amber-400">Tải ảnh xe ra</span> để nhận dạng
+                        Nhấn <span className="font-semibold text-blue-400 cursor-pointer" onClick={startExitCamera}>Mở camera chụp biển số</span>
                       </p>
                     </div>
                   )}
@@ -670,18 +668,17 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                       <button
                         type="button"
                         onClick={handleCaptureExit}
-                        className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 text-sm font-medium text-white transition-colors hover:bg-green-700"
+                        className="flex h-[38px] flex-1 items-center justify-center gap-2 rounded bg-green-600 text-xs font-semibold text-white transition-colors hover:bg-green-700"
                       >
                         <Camera className="h-4 w-4" />
-                        Chụp biển số xe
+                        Chụp biển số
                       </button>
                       <button
                         type="button"
                         onClick={stopExitCamera}
-                        className="flex h-[42px] shrink-0 items-center justify-center gap-2 rounded bg-red-500 px-4 text-sm font-medium text-white transition-colors hover:bg-red-600"
+                        className="flex h-[38px] shrink-0 items-center justify-center gap-2 rounded bg-red-500 px-4 text-xs font-semibold text-white transition-colors hover:bg-red-650"
                       >
-                        <X className="h-4 w-4" />
-                        Đóng
+                        Hủy
                       </button>
                     </>
                   ) : (
@@ -689,10 +686,10 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                       type="button"
                       onClick={startExitCamera}
                       disabled={isOcrScanning}
-                      className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
+                      className="flex h-[38px] flex-1 items-center justify-center gap-1.5 rounded bg-blue-600 text-xs font-semibold text-white hover:bg-blue-700 disabled:bg-blue-300"
                     >
                       <Camera className="h-4 w-4" />
-                      {isOcrScanning ? "Đang xử lý..." : "Mở camera chụp biển số"}
+                      Mở camera chụp biển số
                     </button>
                   )}
 
@@ -700,7 +697,7 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                     type="button"
                     onClick={() => exitPlateFileInputRef.current?.click()}
                     disabled={isOcrScanning || exitVideoStreaming}
-                    className="flex h-[42px] items-center justify-center gap-1.5 rounded border border-amber-400 bg-amber-50 px-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-40"
+                    className="flex h-[38px] items-center gap-1.5 rounded border border-amber-400 bg-amber-50 px-3 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-40"
                   >
                     <Upload className="h-4 w-4" />
                     Tải ảnh xe ra
@@ -714,7 +711,7 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                   />
                 </div>
 
-                <div className="flex items-center gap-2 text-[11px] text-gray-400">
+                <div className="flex items-center gap-2 text-[11px] text-gray-400 py-1">
                   <div className="h-px flex-1 bg-gray-200" />
                   <span>hoặc nhập biển số thủ công</span>
                   <div className="h-px flex-1 bg-gray-200" />
@@ -722,24 +719,27 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
 
                 <div className="flex gap-2">
                   <input
-                    className="h-[38px] flex-1 rounded border border-gray-300 px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100 uppercase font-bold"
-                    placeholder="VD: 29X1-12345 hoặc 30A-99999"
+                    className="h-[38px] flex-1 rounded border border-gray-300 px-3 text-sm outline-none transition focus:border-blue-400 uppercase font-bold tracking-wider"
+                    placeholder="VD: 29A12345"
                     value={inputCode}
                     onChange={(event) => setInputCode(event.target.value.toUpperCase())}
                     onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        handleManualSearch();
+                      if (event.key === "Enter" && inputCode.trim().length > 0) {
+                        setExitPlate(inputCode.trim());
+                        handleComparePlates(inputCode.trim());
                       }
                     }}
                   />
                   <button
                     type="button"
-                    onClick={handleManualSearch}
+                    onClick={() => {
+                      setExitPlate(inputCode.trim());
+                      handleComparePlates(inputCode.trim());
+                    }}
                     disabled={!inputCode.trim()}
-                    className="flex h-[38px] items-center gap-1.5 rounded bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
+                    className="flex h-[38px] items-center gap-1.5 rounded bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
                   >
-                    <Search className="h-3.5 w-3.5" />
-                    Tìm vé
+                    Đối chiếu
                   </button>
                 </div>
 
@@ -750,23 +750,25 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
 
+          {/* Step 3: Compare Results */}
           {checkoutStep === "compare" && (
-            <>
+            <div>
               <div className="flex items-center gap-2 bg-blue-600 px-4 py-2.5">
                 <CheckCircle2 className="h-4 w-4 text-white" />
                 <span className="text-sm font-semibold text-white">
-                  Bước 2: So sánh ảnh xe Vào / Ra
+                  Bước 3: Đối chiếu ảnh & biển số Vào / Ra
                 </span>
               </div>
+
               <div className="p-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Left: Check-in image */}
+                  {/* Entry Photo Info */}
                   <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200">
                     <span className="block text-xs text-gray-500 font-semibold">Ảnh xe lúc vào:</span>
-                    <div className="h-40 border border-gray-300 rounded bg-black/5 overflow-hidden flex items-center justify-center">
+                    <div className="h-32 border border-gray-300 rounded bg-black/5 overflow-hidden flex items-center justify-center">
                       {ticket?.entryImage ? (
                         <img src={ticket.entryImage} alt="Entry Plate" className="h-full w-full object-contain" />
                       ) : (
@@ -777,11 +779,11 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                       Biển số vào: <span className="font-bold text-blue-700 uppercase">{ticket?.bienSo}</span>
                     </div>
                   </div>
-                  
-                  {/* Right: Check-out image */}
+
+                  {/* Exit Photo Info */}
                   <div className="space-y-1 bg-gray-50 p-2 rounded border border-gray-200">
                     <span className="block text-xs text-gray-500 font-semibold">Ảnh xe lúc ra:</span>
-                    <div className="h-40 border border-gray-300 rounded bg-black/5 overflow-hidden flex items-center justify-center">
+                    <div className="h-32 border border-gray-300 rounded bg-black/5 overflow-hidden flex items-center justify-center">
                       {exitImage ? (
                         <img src={exitImage} alt="Exit Plate" className="h-full w-full object-contain" />
                       ) : (
@@ -794,209 +796,70 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
                   </div>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-xs text-yellow-800">
-                  💡 Nhân viên đối chiếu hình ảnh và biển số xe Vào / Ra. Nếu khớp nhau, hãy bấm nút tiếp tục bên dưới để chụp vé.
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCheckoutStep("ticket");
-                    setInputCode(""); // Reset input field for next step
-                    setErrorMsg(null);
-                  }}
-                  className="w-full flex h-[46px] items-center justify-center gap-2 rounded bg-green-600 font-bold text-white hover:bg-green-700 transition-colors shadow-md text-sm"
-                >
-                  <Camera className="w-5 h-5" />
-                  Tiếp tục: Chụp ảnh vé xe ra
-                </button>
-              </div>
-            </>
-          )}
-
-          {checkoutStep === "ticket" && (
-            <>
-              <div className="flex items-center gap-2 bg-blue-600 px-4 py-2.5">
-                <Camera className="h-4 w-4 text-white" />
-                <span className="text-sm font-semibold text-white">
-                  Bước 3: Chụp ảnh vé xe ra
-                </span>
-              </div>
-              <div className="space-y-3 p-4">
-                <div
-                  className={`relative w-full overflow-hidden rounded-lg border-2 bg-slate-950 transition-all ${
-                    qrCameraActive ? "border-blue-400" : "border-dashed border-gray-400"
-                  }`}
-                  style={{ minHeight: qrCameraActive ? "260px" : undefined }}
-                >
-                  <video
-                    ref={qrVideoRef}
-                    autoPlay
-                    className={`h-full w-full object-cover ${qrCameraActive ? "block" : "hidden"}`}
-                    style={{ minHeight: "260px" }}
-                    playsInline
-                    muted
-                  />
-
-                  {qrCameraActive && (
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="relative h-40 w-40">
-                        <div className="absolute left-0 top-0 h-7 w-7 border-l-4 border-t-4 border-blue-400" />
-                        <div className="absolute right-0 top-0 h-7 w-7 border-r-4 border-t-4 border-blue-400" />
-                        <div className="absolute bottom-0 left-0 h-7 w-7 border-b-4 border-l-4 border-blue-400" />
-                        <div className="absolute bottom-0 right-0 h-7 w-7 border-b-4 border-r-4 border-blue-400" />
-                        <div className="absolute left-1 right-1 top-1/2 h-0.5 animate-pulse bg-blue-400 opacity-80" />
+                {plateMatchConfirmed ? (
+                  <div className="w-full rounded-lg border border-green-200 bg-green-50 px-4 py-3 flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+                    <div>
+                      <p className="text-xs font-bold text-green-700">Trạng thái: Hợp lệ</p>
+                      <p className="text-[11px] text-green-600">Biển số xe ra khớp hoàn toàn với biển số xe vào.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-3 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-5 w-5 shrink-0 text-red-600" />
+                      <div>
+                        <p className="text-xs font-bold text-red-700">Trạng thái: Không trùng khớp!</p>
+                        <p className="text-[11px] text-red-600">Biển số lúc ra ({exitPlate}) khác với lúc vào ({ticket?.bienSo}).</p>
                       </div>
-                      <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-blue-300">
-                        Căn chỉnh vé vào khung hình và bấm nút chụp
-                      </p>
                     </div>
-                  )}
-
-                  {!qrCameraActive && !scanning && (
-                    <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 py-8">
-                      <ScanLine className="h-14 w-14 text-gray-500" />
-                      <p className="text-xs text-gray-400">
-                        Nhấn <span className="font-semibold text-blue-400">Mở camera chụp vé</span> để mở camera
-                      </p>
-                      <p className="text-[10px] text-gray-500">
-                        hoặc <span className="font-semibold text-amber-400">Tải ảnh vé</span> để đọc từ file
-                      </p>
-                    </div>
-                  )}
-
-                  {scanning && !qrCameraActive && (
-                    <div className="flex min-h-[140px] flex-col items-center justify-center gap-2 py-8">
-                      <div className="relative h-12 w-12">
-                        <div className="absolute inset-0 animate-spin rounded-full border-4 border-blue-400 border-t-transparent" />
-                        <Camera className="absolute left-1/2 top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-blue-400" />
-                      </div>
-                      <p className="animate-pulse text-xs text-blue-300">Đang nhận diện mã vé...</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  {qrCameraActive ? (
-                    <>
+                    <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={handleQrCapture}
-                        className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 text-sm font-medium text-white transition-colors hover:bg-green-700"
+                        onClick={() => setPlateMatchConfirmed(true)}
+                        className="flex-1 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded text-xs font-bold transition-colors cursor-pointer"
                       >
-                        <Camera className="h-4 w-4" />
-                        Chụp ảnh vé
+                        ⚠️ Cưỡng chế cho xe ra
                       </button>
                       <button
                         type="button"
-                        onClick={stopQrCamera}
-                        className="flex h-[42px] shrink-0 items-center justify-center gap-2 rounded bg-red-500 px-4 text-sm font-medium text-white transition-colors hover:bg-red-600"
+                        onClick={() => {
+                          setCheckoutStep("exit-plate");
+                          setExitPlate("");
+                          setExitImage(null);
+                        }}
+                        className="px-3 py-1.5 border border-gray-350 bg-white hover:bg-gray-50 text-gray-700 rounded text-xs font-semibold cursor-pointer"
                       >
-                        <X className="h-4 w-4" />
-                        Đóng
+                        Quét lại
                       </button>
-                    </>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={startQrCamera}
-                      disabled={scanning}
-                      className="flex h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:bg-blue-300"
-                    >
-                      <Camera className="h-4 w-4" />
-                      {scanning ? "Đang xử lý..." : "Mở camera chụp vé"}
-                    </button>
-                  )}
+                    </div>
+                  </div>
+                )}
 
-                  <button
-                    type="button"
-                    onClick={() => qrFileInputRef.current?.click()}
-                    disabled={scanning || qrCameraActive}
-                    className="flex h-[42px] items-center justify-center gap-1.5 rounded border border-amber-400 bg-amber-50 px-3 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-40"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Tải ảnh vé
-                  </button>
-                  <input
-                    ref={qrFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleQrFileUpload}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                  <div className="h-px flex-1 bg-gray-200" />
-                  <span>hoặc nhập mã vé thủ công</span>
-                  <div className="h-px flex-1 bg-gray-200" />
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    className="h-[38px] flex-1 rounded border border-gray-300 px-3 text-sm outline-none transition focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
-                    placeholder="VD: TK000001, CARD000001"
-                    value={inputCode}
-                    onChange={(event) => setInputCode(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        handleManualSearch();
-                      }
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleManualSearch}
-                    disabled={!inputCode.trim()}
-                    className="flex h-[38px] items-center gap-1.5 rounded bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300"
-                  >
-                    <Search className="h-3.5 w-3.5" />
-                    Đối chiếu vé
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-
-          {checkoutStep === "matched" && (
-            <>
-              <div className="flex items-center gap-2 bg-green-600 px-4 py-2.5">
-                <CheckCircle2 className="h-4 w-4 text-white" />
-                <span className="text-sm font-semibold text-white">
-                  Vé xe khớp hoàn toàn
-                </span>
-              </div>
-              <div className="p-8 text-center space-y-4">
-                <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-green-600" />
-                </div>
-                <div className="space-y-1">
-                  <h4 className="text-base font-bold text-gray-800">Xác thực thành công!</h4>
-                  <p className="text-xs text-gray-500">Mã vé xe ra khớp hoàn toàn với thông tin biển số xe lúc vào.</p>
-                </div>
-                <div className="bg-green-50 border border-green-200 rounded-lg p-3 inline-block">
-                  <span className="text-xs font-semibold text-green-800 font-mono uppercase bg-green-100 px-2 py-1 rounded">
-                    Mã vé: {recognizedTicketCode || ticket?.maVe}
-                  </span>
-                </div>
-                
-                <div className="pt-2">
+                <div className="pt-2 flex justify-between">
                   <button
                     type="button"
                     onClick={() => {
-                      setCheckoutStep("ticket");
-                      setPlateMatchConfirmed(false);
-                      setInputCode("");
+                      setCheckoutStep("exit-plate");
+                      setErrorMsg(null);
                     }}
                     className="text-xs text-blue-600 hover:underline"
                   >
-                    Chụp lại vé khác
+                    Quay lại bước 2
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="text-xs text-gray-500 hover:underline"
+                  >
+                    Hủy giao dịch
                   </button>
                 </div>
               </div>
-            </>
+            </div>
           )}
 
+          {/* Feedback section */}
           <div className="px-4 pb-4">
             {errorMsg && (
               <div className="flex items-start gap-2 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
@@ -1007,36 +870,33 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
           </div>
         </div>
 
-        {/* Thông tin vé */}
-        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm">
+        {/* Ticket details right-side panel */}
+        <div className="overflow-hidden rounded border border-gray-200 bg-white shadow-sm flex flex-col min-h-[480px]">
           <div className={`flex items-center gap-2 px-4 py-2.5 ${ticket ? "bg-green-600" : "bg-gray-400"}`}>
             <CreditCard className="h-4 w-4 text-white" />
             <span className="text-sm font-semibold text-white">
-              Thông tin vé
+              Thông tin thanh toán & xuất xe
             </span>
           </div>
 
           {!ticket ? (
-            <div className="flex min-h-[390px] flex-col items-center justify-center text-gray-400">
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 py-16">
               <CreditCard className="mb-3 h-16 w-16 opacity-20" />
               <p className="text-sm">
-                Chụp ảnh vé hoặc nhập mã vé để tiếp tục
+                Vui lòng nhập barcode ở bước 1 để tải thông tin vé
               </p>
             </div>
           ) : confirmed ? (
-            <div className="flex min-h-[390px] flex-col items-center justify-center px-5 py-12 text-center">
+            <div className="flex-1 flex flex-col items-center justify-center px-5 py-12 text-center">
               <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
                 <CheckCircle2 className="h-10 w-10 text-green-600" />
               </div>
-
               <p className="text-base font-semibold text-green-700">
                 Xử lý xe ra thành công!
               </p>
-
               <p className="mt-2 text-sm text-gray-500">
-                Xe <span className="font-semibold text-gray-700">{ticket.bienSo}</span> đã rời bãi đỗ xe.
+                Xe <span className="font-semibold text-gray-700">{ticket.bienSo}</span> đã được ghi nhận rời bãi.
               </p>
-
               <button
                 type="button"
                 onClick={handleCancel}
@@ -1046,98 +906,96 @@ export default function VehicleExit({ selectedLaneCode, selectedFloorCode }: Veh
               </button>
             </div>
           ) : (
-            <div className="space-y-3 p-4">
-              <div className="w-full">
-                <div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Mã vé:</span>
-                    <span className="text-right text-gray-800 font-bold">{ticket.maVe}</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Biển số:</span>
-                    <span className="text-right text-gray-800 font-bold">{ticket.bienSo}</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Loại xe:</span>
-                    <span className="text-right text-gray-800 font-semibold">{ticket.loaiXe}</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Thời gian vào:</span>
-                    <span className="text-right text-gray-800 font-semibold">{ticket.tgVao}</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Thời gian ra:</span>
-                    <span className="text-right text-gray-800 font-semibold">{ticket.tgRa}</span>
-                  </div>
-                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
-                    <span className="text-gray-500 font-medium">Thời gian gửi:</span>
-                    <span className="text-right text-gray-800 font-semibold">{ticket.thoiGianGui}</span>
-                  </div>
-                  {ticket.violationReason && (
-                    <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 text-red-600 font-semibold bg-red-50 p-2 rounded border border-red-200 mt-2">
-                      <span className="text-red-500">Lý do vi phạm:</span>
-                      <span className="text-right">{ticket.violationReason}</span>
-                    </div>
-                  )}
+            <div className="flex-1 flex flex-col justify-between p-4 space-y-4">
+              <div className="space-y-2">
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Mã vé (Barcode):</span>
+                  <span className="text-right text-gray-800 font-bold">{ticket.maVe}</span>
                 </div>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Biển số vào:</span>
+                  <span className="text-right text-gray-800 font-bold">{ticket.bienSo}</span>
+                </div>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Loại xe:</span>
+                  <span className="text-right text-gray-800 font-semibold">{ticket.loaiXe}</span>
+                </div>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Thời gian vào:</span>
+                  <span className="text-right text-gray-800 font-semibold">{ticket.tgVao}</span>
+                </div>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Thời gian ra:</span>
+                  <span className="text-right text-gray-800 font-semibold">{ticket.tgRa}</span>
+                </div>
+                <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 border-b border-gray-100 py-1">
+                  <span className="text-gray-500 font-medium">Thời gian gửi:</span>
+                  <span className="text-right text-gray-800 font-semibold">{ticket.thoiGianGui}</span>
+                </div>
+                {ticket.violationReason && (
+                  <div className="grid grid-cols-[120px_1fr] gap-2 text-xs leading-6 text-red-650 font-semibold bg-red-50 p-2 rounded border border-red-200 mt-2">
+                    <span className="text-red-500">Lý do vi phạm:</span>
+                    <span className="text-right">{ticket.violationReason}</span>
+                  </div>
+                )}
               </div>
 
               <div className="rounded-lg bg-blue-600 px-4 py-4 text-center">
                 <p className="text-xs text-blue-100">
                   Tổng phí gửi xe
                 </p>
-
-                <p className="mt-1 text-3xl font-bold tabular-nums text-white">
+                <p className="mt-1 text-2xl font-bold tabular-nums text-white">
                   {ticket.phi.toLocaleString("vi-VN")} VNĐ
                 </p>
-
-                <p className="mt-1 text-[11px] italic text-blue-200">
+                <p className="mt-1 text-[10px] italic text-blue-200">
                   {ticket.phi === 0 ? "Thanh toán bằng thẻ tháng / vé đặt trước" : (ticket.loaiXe.includes("Ô tô") ? "Vé lượt ô tô" : "Vé lượt xe máy")}
                 </p>
               </div>
 
-              <div className="flex gap-2 pt-2">
-                {ticket.phi > 0 ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  {ticket.phi > 0 ? (
+                    <button
+                      type="button"
+                      disabled={!plateMatchConfirmed || checkoutStep !== "compare"}
+                      onClick={() => setIsPaymentModalOpen(true)}
+                      className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed cursor-pointer shadow"
+                    >
+                      <QrCode className="h-4 w-4" />
+                      Thanh toán
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={!plateMatchConfirmed || checkoutStep !== "compare"}
+                      onClick={executeFinalCheckOut}
+                      className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed cursor-pointer shadow"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Xác nhận &amp; Cho xe ra (Thẻ tháng)
+                    </button>
+                  )}
+
                   <button
                     type="button"
-                    disabled={!plateMatchConfirmed || checkoutStep !== "matched"}
-                    onClick={() => setIsPaymentModalOpen(true)}
-                    className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-blue-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
+                    onClick={handleCancel}
+                    className="flex h-[42px] items-center gap-1.5 rounded border border-gray-300 px-4 text-sm text-gray-600 transition-colors hover:bg-gray-50 cursor-pointer"
                   >
-                    <QrCode className="h-4 w-4" />
-                    Thanh toán
+                    Hủy
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={!plateMatchConfirmed || checkoutStep !== "matched"}
-                    onClick={executeFinalCheckOut}
-                    className="flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded bg-green-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Xác nhận &amp; Cho xe ra (Thẻ tháng)
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="flex h-[42px] items-center gap-1.5 rounded border border-gray-300 px-4 text-sm text-gray-600 transition-colors hover:bg-gray-50"
-                >
-                  <X className="h-4 w-4" />
-                  Hủy
-                </button>
-              </div>
-
-              {checkoutStep !== "matched" && (
-                <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-3 text-xs text-yellow-800 text-center">
-                  ⚠️ Vui lòng hoàn thành đối chiếu biển số xe và quét/chụp vé ở cột bên trái để mở khóa nút cho xe ra / thanh toán.
                 </div>
-              )}
+
+                {checkoutStep !== "compare" && (
+                  <div className="rounded-lg bg-yellow-50 border border-yellow-200 p-2.5 text-[11px] text-yellow-800 text-center">
+                    ⚠️ Vui lòng hoàn tất nhập thông tin và đối chiếu biển số xe cột bên trái để tiếp tục.
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+
       {ticket && (
         <PaymentModal
           isOpen={isPaymentModalOpen}

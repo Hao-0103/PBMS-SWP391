@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getLocalTodayStr } from "../../../utils/dateUtils";
 import { Search, RotateCcw, Download, Calendar } from "lucide-react";
 import { cls } from "../common/ui";
 import { DateInput, FilterGroup } from "../common/DateInput";
@@ -51,7 +52,7 @@ const columns: Column[] = [
 
 export default function MonthlyCards() {
   const [keyword, setKeyword] = useState("");
-  const [chonNgay, setChonNgay] = useState("2024-01-15");
+  const [chonNgay, setChonNgay] = useState(getLocalTodayStr());
   const [filter, setFilter] = useState<"all" | "soon" | "expired">("all");
   const [nhomThe, setNhomThe] = useState("");
   const [page, setPage] = useState(1);

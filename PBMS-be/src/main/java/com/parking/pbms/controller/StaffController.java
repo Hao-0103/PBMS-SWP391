@@ -9,10 +9,9 @@ import com.parking.pbms.dto.StaffCheckOutRequest;
 import com.parking.pbms.dto.StaffTicketResponse;
 import com.parking.pbms.dto.StaffTransactionResponse;
 import com.parking.pbms.model.Floor;
-import com.parking.pbms.model.Lane;
 import com.parking.pbms.model.Payment;
 import com.parking.pbms.repository.PaymentRepository;
-import com.parking.pbms.repository.ParkingTicketRepository;
+import com.parking.pbms.repository.ParkingSessionRepository;
 import com.parking.pbms.service.AssignmentService;
 import com.parking.pbms.service.PaymentService;
 import com.parking.pbms.service.StaffService;
@@ -35,15 +34,8 @@ public class StaffController {
     private final AssignmentService assignmentService;
     private final PaymentService paymentService;
     private final PaymentRepository paymentRepository;
-    private final ParkingTicketRepository parkingTicketRepository;
+    private final ParkingSessionRepository ParkingSessionRepository;
 
-    @GetMapping("/lanes")
-    public ResponseEntity<ApiResponse<List<Lane>>> getLanes() {
-        List<Lane> lanes = staffService.getLanes();
-        return ResponseEntity.ok(
-                ApiResponse.success(200, "Lấy danh sách làn xe thành công", lanes)
-        );
-    }
 
     @GetMapping("/floors")
     public ResponseEntity<ApiResponse<List<Floor>>> getFloors() {
@@ -80,11 +72,10 @@ public class StaffController {
     @GetMapping("/check-out-preview")
     public ResponseEntity<ApiResponse<StaffTicketResponse>> previewCheckOut(
             @RequestParam String ticketNoOrQrToken,
-            @RequestParam String laneCode,
             Principal principal
     ) {
         String username = principal.getName();
-        StaffTicketResponse response = staffService.previewCheckOut(ticketNoOrQrToken, laneCode, username);
+        StaffTicketResponse response = staffService.previewCheckOut(ticketNoOrQrToken, username);
         return ResponseEntity.ok(
                 ApiResponse.success(200, "Xem trước thông tin vé ra", response)
         );

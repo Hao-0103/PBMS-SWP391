@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getLocalTodayStr } from "../../../utils/dateUtils";
 import { AlertOctagon, Plus, X } from "lucide-react";
 import { cls } from "../common/ui";
 
@@ -66,7 +67,7 @@ export default function StaffViolations() {
       amount: Number(form.amount),
       evidence: form.evidence,
       relatedRequestId: form.relatedRequestId,
-      date: new Date().toISOString().split("T")[0],
+      date: getLocalTodayStr(),
       status: "Pending Approval",
     };
     setReports(prev => [newV, ...prev]);

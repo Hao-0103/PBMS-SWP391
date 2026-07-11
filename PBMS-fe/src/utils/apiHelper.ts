@@ -18,6 +18,41 @@ export async function safeJson<T>(response: Response): Promise<T> {
 }
 
 /**
+ * Centralized authenticated fetch.
+ * - Auto-attaches Authorization header from stored token.
+ * - If token is expired (caught at getToken), dispatches "session:expired".
+ * - If server returns 401, also dispatches "session:expired" and throws.
+ * - Merges caller-provided headers with Authorization.
+ */
+export async function authFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  // Import lazily to avoid circular dependency
+  const { authService } = await import("../services/authService");
+  const token = authService.getToken();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401) {
+    authService.logout();
+    window.dispatchEvent(new Event("session:expired"));
+    throw new Error("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+  }
+
+  return response;
+}
+
+/**
  * Utility function to handle fetch responses safely, avoiding JSON parse errors
  * when the server returns empty bodies or plain text.
  */

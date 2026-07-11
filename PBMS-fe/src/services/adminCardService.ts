@@ -1,7 +1,7 @@
-import { authService, ApiResponse } from "./authService";
-import { safeJson } from "../utils/apiHelper";
+import { ApiResponse } from "./authService";
+import { authFetch, safeJson } from "../utils/apiHelper";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5173/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
 
 export interface CardGroupDto {
   cardGroupId: number;
@@ -49,68 +49,36 @@ export interface HistorySearchParams {
 
 export const adminCardService = {
   async getAllCardGroups(): Promise<CardGroupDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/card-groups`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/card-groups`);
     const result: ApiResponse<CardGroupDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách nhóm thẻ.");
     return result.data;
   },
 
   async createCardGroup(payload: CardGroupPayload): Promise<CardGroupDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/card-groups`, {
+    const response = await authFetch(`${API_URL}/admin/card-groups`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<CardGroupDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Tạo nhóm thẻ thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Tạo nhóm thẻ thất bại.");
     return result.data;
   },
 
   async updateCardGroup(id: number, payload: CardGroupPayload): Promise<CardGroupDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/card-groups/${id}`, {
+    const response = await authFetch(`${API_URL}/admin/card-groups/${id}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<CardGroupDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Cập nhật nhóm thẻ thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Cập nhật nhóm thẻ thất bại.");
     return result.data;
   },
 
   async deleteCardGroup(id: number): Promise<void> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/card-groups/${id}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+    const response = await authFetch(`${API_URL}/admin/card-groups/${id}`, {
+      method: "DELETE"
     });
-
     if (!response.ok) {
       const result: ApiResponse<any> = await safeJson(response);
       throw new Error(result.message || "Xóa nhóm thẻ thất bại.");
@@ -118,7 +86,6 @@ export const adminCardService = {
   },
 
   async getCardHistories(params: HistorySearchParams): Promise<CardHistoryDto[]> {
-    const token = authService.getToken();
     const query = new URLSearchParams();
     if (params.keyword) query.append("keyword", params.keyword);
     if (params.fromDate) query.append("fromDate", params.fromDate);
@@ -126,181 +93,54 @@ export const adminCardService = {
     if (params.hanhDong) query.append("hanhDong", params.hanhDong);
     if (params.nguoiDung) query.append("nguoiDung", params.nguoiDung);
     if (params.nhomThe) query.append("nhomThe", params.nhomThe);
-
-    const response = await fetch(`${API_URL}/admin/card-histories?${query.toString()}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/card-histories?${query.toString()}`);
     const result: ApiResponse<CardHistoryDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải lịch sử thẻ.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải lịch sử thẻ.");
     return result.data;
   },
 
   async getUsers(): Promise<UserDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/users`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/users`);
     const result: ApiResponse<UserDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách người dùng.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách người dùng.");
     return result.data;
   },
 
   async createUser(payload: CreateUserPayload): Promise<UserDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/users`, {
+    const response = await authFetch(`${API_URL}/admin/users`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<UserDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Tạo người dùng thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Tạo người dùng thất bại.");
     return result.data;
   },
 
   async updateUser(id: number, payload: UpdateUserPayload): Promise<UserDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
+    const response = await authFetch(`${API_URL}/admin/users/${id}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<UserDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Cập nhật người dùng thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Cập nhật người dùng thất bại.");
     return result.data;
   },
 
   async deleteUser(id: number): Promise<UserDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/users/${id}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/users/${id}`, { method: "DELETE" });
     const result: ApiResponse<UserDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Khóa tài khoản thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Khóa tài khoản thất bại.");
     return result.data;
   },
 
-  async getCustomers(): Promise<CustomerDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/customers`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
-    const result: ApiResponse<CustomerDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách khách hàng.");
-    }
-    return result.data;
-  },
-
-  async getCustomerCards(customerId: number): Promise<CustomerCardDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/customers/${customerId}/cards`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
-    const result: ApiResponse<CustomerCardDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách thẻ của khách hàng.");
-    }
-    return result.data;
-  },
-
-  async createCustomer(payload: CreateCustomerPayload): Promise<CustomerDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/customers`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const result: ApiResponse<CustomerDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Tạo khách hàng thất bại.");
-    }
-    return result.data;
-  },
-
-  async updateCustomer(customerId: number, payload: UpdateCustomerPayload): Promise<CustomerDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/customers/${customerId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    });
-
-    const result: ApiResponse<CustomerDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Cập nhật khách hàng thất bại.");
-    }
-    return result.data;
-  },
-
-  async deleteCustomer(customerId: number): Promise<CustomerDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/customers/${customerId}`, {
-      method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
-    const result: ApiResponse<CustomerDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Khóa khách hàng thất bại.");
-    }
+  async getUserCards(userId: number): Promise<UserCardDto[]> {
+    const response = await authFetch(`${API_URL}/admin/users/${userId}/cards`);
+    const result: ApiResponse<UserCardDto[]> = await safeJson(response);
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách thẻ của người dùng.");
     return result.data;
   },
 
   async getVehicleReport(params: VehicleReportParams): Promise<VehicleReportDto[]> {
-    const token = authService.getToken();
     const query = new URLSearchParams();
     query.append("tab", params.tab);
     if (params.keyword) query.append("keyword", params.keyword);
@@ -309,122 +149,60 @@ export const adminCardService = {
     if (params.laneId) query.append("laneId", String(params.laneId));
     if (params.staffId) query.append("staffId", String(params.staffId));
     if (params.ticketType) query.append("ticketType", params.ticketType);
-
-    const response = await fetch(`${API_URL}/admin/reports/vehicle-entry-exit?${query.toString()}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/reports/vehicle-entry-exit?${query.toString()}`);
     const result: ApiResponse<VehicleReportDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải báo cáo xe vào/ra.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải báo cáo xe vào/ra.");
     return result.data;
   },
 
   async getMyRequests(): Promise<RequestSupportDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/support/my`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/support/my`);
     const result: ApiResponse<RequestSupportDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách yêu cầu.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách yêu cầu.");
     return result.data;
   },
 
   async createSupportRequest(payload: { subject: string; description: string; requestType: string }): Promise<RequestSupportDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/support/my`, {
+    const response = await authFetch(`${API_URL}/support/my`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
       body: JSON.stringify(payload)
     });
-
     const result: ApiResponse<RequestSupportDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Gửi yêu cầu thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Gửi yêu cầu thất bại.");
     return result.data;
   },
 
   async getAllRequests(): Promise<RequestSupportDto[]> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/requests`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
-    });
-
+    const response = await authFetch(`${API_URL}/admin/requests`);
     const result: ApiResponse<RequestSupportDto[]> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Không thể tải danh sách yêu cầu.");
-    }
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách yêu cầu.");
     return result.data;
   },
 
   async approveRequest(requestId: number, note: string): Promise<RequestSupportDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/requests/${requestId}/approve?note=${encodeURIComponent(note)}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+    const response = await authFetch(`${API_URL}/admin/requests/${requestId}/approve?note=${encodeURIComponent(note)}`, {
+      method: "POST"
     });
-
     const result: ApiResponse<RequestSupportDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Duyệt yêu cầu thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Duyệt yêu cầu thất bại.");
     return result.data;
   },
 
   async rejectRequest(requestId: number, note: string): Promise<RequestSupportDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/requests/${requestId}/reject?note=${encodeURIComponent(note)}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+    const response = await authFetch(`${API_URL}/admin/requests/${requestId}/reject?note=${encodeURIComponent(note)}`, {
+      method: "POST"
     });
-
     const result: ApiResponse<RequestSupportDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Từ chối yêu cầu thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Từ chối yêu cầu thất bại.");
     return result.data;
   },
 
   async assignRequestStaff(requestId: number, staffId: number): Promise<RequestSupportDto> {
-    const token = authService.getToken();
-    const response = await fetch(`${API_URL}/admin/requests/${requestId}/assign?staffId=${staffId}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      }
+    const response = await authFetch(`${API_URL}/admin/requests/${requestId}/assign?staffId=${staffId}`, {
+      method: "POST"
     });
-
     const result: ApiResponse<RequestSupportDto> = await safeJson(response);
-    if (!response.ok) {
-      throw new Error(result.message || "Phân công nhân viên thất bại.");
-    }
+    if (!response.ok) throw new Error(result.message || "Phân công nhân viên thất bại.");
     return result.data;
   }
 };
@@ -438,6 +216,8 @@ export interface UserDto {
   email: string;
   status: string;
   createdAt: string;
+  address?: string;
+  cardCount?: number;
 }
 
 export interface CreateUserPayload {
@@ -448,6 +228,7 @@ export interface CreateUserPayload {
   email?: string;
   password?: string;
   status: string;
+  address?: string;
 }
 
 export interface UpdateUserPayload {
@@ -457,23 +238,10 @@ export interface UpdateUserPayload {
   email?: string;
   password?: string;
   status: string;
+  address?: string;
 }
 
-export interface CustomerDto {
-  customerId: number;
-  customerCode: string;
-  accountId: number;
-  fullName: string;
-  phone: string;
-  email: string;
-  address: string;
-  note: string;
-  status: string;
-  createdAt: string;
-  monthlyCardCount: number;
-}
-
-export interface CustomerCardDto {
+export interface UserCardDto {
   cardId: number;
   cardNo: string;
   rfidUid: string;
@@ -484,23 +252,6 @@ export interface CustomerCardDto {
   expireAt: string;
   status: string;
   note: string;
-}
-
-export interface CreateCustomerPayload {
-  fullName: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  note?: string;
-}
-
-export interface UpdateCustomerPayload {
-  fullName: string;
-  phone: string;
-  email?: string;
-  address?: string;
-  note?: string;
-  status: string;
 }
 
 export interface VehicleReportParams {

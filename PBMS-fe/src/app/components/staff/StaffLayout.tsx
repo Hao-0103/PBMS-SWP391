@@ -7,7 +7,7 @@ import {
   CheckCircle, AlertTriangle, Info, XCircle,
   Layers,
 } from "lucide-react";
-import { FloorDto, LaneDto, StaffAssignmentDto } from "../../../services/staffService";
+import { FloorDto, StaffAssignmentDto } from "../../../services/staffService";
 
 export type StaffScreen =
   | "dashboard"
@@ -24,11 +24,8 @@ interface StaffLayoutProps {
   children: React.ReactNode;
   staffName?: string;
   selectedFloorCode: string;
-  selectedLaneCode: string;
   floors: FloorDto[];
-  lanes: LaneDto[];
   onFloorChange: (code: string) => void;
-  onLaneChange: (code: string) => void;
   assignment?: StaffAssignmentDto | null;
 }
 
@@ -75,11 +72,8 @@ export default function StaffLayout({
   children,
   staffName = "Nhân viên 01",
   selectedFloorCode,
-  selectedLaneCode,
   floors,
-  lanes,
   onFloorChange,
-  onLaneChange,
   assignment,
 }: StaffLayoutProps) {
   const [notifOpen, setNotifOpen] = useState(false);
@@ -104,12 +98,6 @@ export default function StaffLayout({
     if (!assignment) {
       // If not assigned today, hide entry/exit operations
       return item.screen !== "vehicle-entry" && item.screen !== "vehicle-exit";
-    }
-    if (assignment.laneType === "ENTRY" && item.screen === "vehicle-exit") {
-      return false;
-    }
-    if (assignment.laneType === "EXIT" && item.screen === "vehicle-entry") {
-      return false;
     }
     return true;
   });
@@ -188,10 +176,6 @@ export default function StaffLayout({
                 <div className="flex items-center gap-1.5 bg-blue-50/90 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-xs font-semibold">
                   <span className="uppercase text-[9px] text-blue-500 font-extrabold tracking-wider">Tầng trực:</span>
                   <span>{assignment.floorName} ({assignment.floorCode})</span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-indigo-50/90 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded text-xs font-semibold">
-                  <span className="uppercase text-[9px] text-indigo-500 font-extrabold tracking-wider">Làn trực:</span>
-                  <span>{assignment.laneName} ({assignment.laneType === "ENTRY" ? "Vào" : "Ra"})</span>
                 </div>
               </div>
             )}

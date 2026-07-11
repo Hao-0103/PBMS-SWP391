@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { getLocalTodayStr } from "../../../utils/dateUtils";
 import { Search, RotateCcw, Download, Camera } from "lucide-react";
 import { cls } from "../common/ui";
 import { DateInput, FilterGroup } from "../common/DateInput";
@@ -40,8 +41,8 @@ const columns: Column[] = [
 export default function VehiclesInParking() {
   const [keyword, setKeyword] = useState("");
   const [nhomKH, setNhomKH] = useState("");
-  const [fromDate, setFromDate] = useState("2024-01-15");
-  const [toDate, setToDate] = useState("2024-01-15");
+  const [fromDate, setFromDate] = useState(getLocalTodayStr());
+  const [toDate, setToDate] = useState(getLocalTodayStr());
   const [lan, setLan] = useState("");
   const [nguoiDung, setNguoiDung] = useState("");
   const [bienSoHopLe, setBienSoHopLe] = useState("");

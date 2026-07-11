@@ -164,8 +164,7 @@ public class ProfileServiceImpl implements ProfileService {
                 userRepository.save(user);
                 address = user.getAddress();
             }
-            // Keep Customers table in sync
-            userRepository.updateCustomerProfile(account.getAccountId(), fullName, email, phone, address);
+
         } else if ("admin".equals(role)) {
             Optional<Admin> adminOpt = adminRepository.findByAccountId(account.getAccountId());
             if (adminOpt.isPresent()) {

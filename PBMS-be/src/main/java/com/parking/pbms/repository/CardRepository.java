@@ -10,13 +10,10 @@ import java.util.Optional;
 
 public interface CardRepository extends JpaRepository<Card, Integer> {
     
-    @Query("SELECT c FROM Card c JOIN CardGroup cg ON c.cardGroupId = cg.cardGroupId WHERE c.customerId = :customerId AND cg.ticketType IN ('MONTHLY', 'DAY')")
-    List<Card> findMonthlyAndDayCardsByCustomerId(@Param("customerId") Integer customerId);
-
-    boolean existsByRfidUid(String rfidUid);
+    @Query("SELECT c FROM Card c JOIN CardGroup cg ON c.cardGroupId = cg.cardGroupId WHERE c.accountId = :accountId AND cg.ticketType IN ('MONTHLY', 'DAY')")
+    List<Card> findMonthlyAndDayCardsByAccountId(@Param("accountId") Integer accountId);
 
     Optional<Card> findByCardNo(String cardNo);
-    Optional<Card> findByRfidUid(String rfidUid);
 
     /**
      * Tìm tất cả thẻ đang ACTIVE nhưng đã quá ngày hết hạn (expireAt < today).

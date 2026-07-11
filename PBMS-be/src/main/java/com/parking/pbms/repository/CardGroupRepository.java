@@ -6,4 +6,5 @@ import java.util.Optional;
 
 public interface CardGroupRepository extends JpaRepository<CardGroup, Integer> {
     Optional<CardGroup> findByGroupName(String groupName);
+    Optional<CardGroup> findFirstByVehicleTypeIgnoreCaseAndTicketTypeIgnoreCaseAndStatusIgnoreCase(String vehicleType, String ticketType, String status);
 }

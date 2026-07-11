@@ -10,7 +10,6 @@ public interface ReportService {
             String keyword,
             LocalDateTime fromDate,
             LocalDateTime toDate,
-            Integer laneId,
             Integer staffId,
             String ticketType
     );

@@ -18,8 +18,7 @@ public record StaffCheckInRequest(
         @NotBlank(message = "Mã tầng không được để trống")
         String floorCode,
 
-        @NotBlank(message = "Mã làn không được để trống")
-        String laneCode,
+        String entryImage,
 
-        String entryImage
+        String cardBarcode
 ) {}

@@ -15,14 +15,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             LocalDate workDate,
             String status
     );
-    
-    // Check conflicts for a lane and shift on a date (not cancelled)
-    Optional<StaffAssignment> findFirstByLaneIdAndWorkDateAndShiftIdAndStatusNot(
-            Integer laneId,
-            LocalDate workDate,
-            Integer shiftId,
-            String status
-    );
+
 
     // Check conflicts for a staff member and shift on a date (not cancelled)
     Optional<StaffAssignment> findFirstByStaffIdAndWorkDateAndShiftIdAndStatusNot(

@@ -17,10 +17,10 @@ import { DataTable, Column } from "../common/DataTable";
 import { Pagination } from "../common/Pagination";
 import {
   adminCardService,
-  CustomerDto,
-  CustomerCardDto,
-  CreateCustomerPayload,
-  UpdateCustomerPayload,
+  UserDto,
+  UserCardDto,
+  CreateUserPayload,
+  UpdateUserPayload,
 } from "../../../services/adminCardService";
 
 interface Customer {
@@ -33,6 +33,7 @@ interface Customer {
   diaChi: string;
   soThe: number;
   trangThai: string;
+  roleName?: string;
 }
 
 interface CardDetail {
@@ -54,6 +55,9 @@ interface FormData {
   email: string;
   diaChi: string;
   ghiChu: string;
+  username?: string;
+  roleName?: string;
+  password?: string;
 }
 
 const defaultForm: FormData = {
@@ -62,19 +66,23 @@ const defaultForm: FormData = {
   email: "",
   diaChi: "",
   ghiChu: "",
+  username: "",
+  roleName: "USER",
+  password: "",
 };
 
-const mapDtoToCustomer = (dto: CustomerDto, index: number): Customer => {
+const mapDtoToCustomer = (dto: UserDto, index: number): Customer => {
   return {
-    id: dto.customerId,
+    id: dto.accountId,
     stt: index + 1,
-    maKH: dto.customerCode,
+    maKH: dto.username,
     hoTen: dto.fullName,
-    sdt: dto.phone,
+    sdt: dto.phone || "",
     email: dto.email || "",
     diaChi: dto.address || "",
-    soThe: dto.monthlyCardCount || 0,
+    soThe: dto.cardCount || 0,
     trangThai: dto.status === "ACTIVE" ? "Hoạt động" : "Khóa",
+    roleName: dto.roleName,
   };
 };
 
@@ -94,7 +102,7 @@ function CustomerCardsModal({
       setLoading(true);
       setError("");
       try {
-        const data = await adminCardService.getCustomerCards(customer.id);
+        const data = await adminCardService.getUserCards(customer.id);
         setCards(
           data.map((item) => ({
             id: item.cardId,
@@ -131,7 +139,7 @@ function CustomerCardsModal({
       <div className="flex max-h-[85vh] w-[680px] flex-col rounded-lg bg-white shadow-xl">
         <div className="flex flex-shrink-0 items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
           <div className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-white" />
+              <CreditCard className="h-4 w-4 text-white" />
             <span className="text-sm font-semibold text-white">
               Thẻ của khách hàng: {customer.hoTen}
             </span>
@@ -185,7 +193,7 @@ function CustomerCardsModal({
             <div className="flex flex-col items-center justify-center py-12 text-gray-400">
               <CreditCard className="mb-2 h-10 w-10 opacity-30" />
               <p className="text-sm">
-                Khách hàng chưa có thẻ liên kết
+                Khách hàng chưa có thẻ liên kết / không thể truy xuất
               </p>
             </div>
           ) : (
@@ -294,8 +302,9 @@ export default function CustomerManagement() {
     setLoading(true);
     setError("");
     try {
-      const list = await adminCardService.getCustomers();
-      setData(list.map((item, index) => mapDtoToCustomer(item, index)));
+      const list = await adminCardService.getUsers();
+      const customersOnly = list.filter(item => item.roleName === "USER");
+      setData(customersOnly.map((item, index) => mapDtoToCustomer(item, index)));
     } catch (err: any) {
       setError(err.message || "Không thể tải danh sách khách hàng.");
     } finally {
@@ -337,6 +346,9 @@ export default function CustomerManagement() {
       email: item.email,
       diaChi: item.diaChi,
       ghiChu: "",
+      username: item.maKH,
+      roleName: item.roleName || "USER",
+      password: "",
     });
     setFormError("");
     setShowModal(true);
@@ -352,27 +364,39 @@ export default function CustomerManagement() {
       setFormError("Vui lòng nhập số điện thoại.");
       return;
     }
+    if (!form.username || !form.username.trim()) {
+      setFormError("Vui lòng nhập tên đăng nhập.");
+      return;
+    }
+    if (!editItem && (!form.password || form.password.length < 6)) {
+      setFormError("Mật khẩu phải có ít nhất 6 ký tự.");
+      return;
+    }
 
     try {
       if (editItem) {
-        const payload: UpdateCustomerPayload = {
+        const payload: UpdateUserPayload = {
           fullName: form.hoTen.trim(),
+          roleName: form.roleName || editItem.roleName || "USER",
           phone: form.sdt.trim(),
           email: form.email.trim() || undefined,
-          address: form.diaChi.trim() || undefined,
-          note: form.ghiChu.trim() || undefined,
+          password: form.password && form.password.length >= 6 ? form.password : undefined,
           status: editItem.trangThai === "Hoạt động" ? "ACTIVE" : "INACTIVE",
+          address: form.diaChi.trim() || undefined,
         };
-        await adminCardService.updateCustomer(editItem.id, payload);
+        await adminCardService.updateUser(editItem.id, payload);
       } else {
-        const payload: CreateCustomerPayload = {
+        const payload: CreateUserPayload = {
+          username: form.username!.trim(),
           fullName: form.hoTen.trim(),
+          roleName: form.roleName || "USER",
           phone: form.sdt.trim(),
           email: form.email.trim() || undefined,
+          password: form.password || undefined,
+          status: "ACTIVE",
           address: form.diaChi.trim() || undefined,
-          note: form.ghiChu.trim() || undefined,
         };
-        await adminCardService.createCustomer(payload);
+        await adminCardService.createUser(payload);
       }
       await fetchCustomers();
       setShowModal(false);
@@ -384,11 +408,11 @@ export default function CustomerManagement() {
 
   const handleDelete = async (id: number) => {
     try {
-      await adminCardService.deleteCustomer(id);
+      await adminCardService.deleteUser(id);
       await fetchCustomers();
       setDeleteConfirm(null);
     } catch (err: any) {
-      alert(err.message || "Vô hiệu hóa khách hàng thất bại.");
+      alert(err.message || "Vô hiệu hóa người dùng thất bại.");
     }
   };
 
@@ -397,11 +421,6 @@ export default function CustomerManagement() {
       key: "stt",
       label: "STT",
       width: "40px",
-    },
-    {
-      key: "maKH",
-      label: "Mã KH",
-      width: "80px",
     },
     {
       key: "hoTen",
@@ -494,10 +513,10 @@ export default function CustomerManagement() {
     <div className="space-y-2">
       <div className={cls.filterSection}>
         <div className="mb-2 flex flex-wrap items-end gap-2">
-          <FilterGroup label="Từ khóa (Mã KH, Tên KH, SĐT)">
+          <FilterGroup label="Từ khóa (Tên KH, SĐT)">
             <input
               className={`${cls.input} w-[230px]`}
-              placeholder="Nhập mã KH, tên, SĐT..."
+              placeholder="Nhập tên, SĐT..."
               value={keyword}
               onChange={(event) => {
                 setKeyword(event.target.value);
@@ -616,7 +635,7 @@ export default function CustomerManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-[440px] rounded-lg bg-white shadow-xl">
             <div className="flex items-center justify-between rounded-t-lg bg-blue-600 px-5 py-3">
-              <span className="text-sm font-semibold text-white">
+                <span className="text-sm font-semibold text-white">
                 Thông tin khách hàng
               </span>
 
@@ -631,7 +650,6 @@ export default function CustomerManagement() {
 
             <div className="space-y-2.5 p-5">
               {[
-                { label: "Mã khách hàng", value: viewItem.maKH },
                 { label: "Họ tên", value: viewItem.hoTen },
                 { label: "Số điện thoại", value: viewItem.sdt },
                 { label: "Email", value: viewItem.email },
@@ -679,6 +697,23 @@ export default function CustomerManagement() {
             </div>
 
             <div className="space-y-3 p-5 text-left">
+              <div>
+                <label className="mb-1 block text-xs text-gray-600">
+                  Tên đăng nhập <span className="text-red-500">*</span>
+                </label>
+                <input
+                  className={`${cls.input} w-full`}
+                  placeholder="username"
+                  value={form.username}
+                  onChange={(event) =>
+                    setForm((previous) => ({
+                      ...previous,
+                      username: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
               <div>
                 <label className="mb-1 block text-xs text-gray-600">
                   Họ tên <span className="text-red-500">*</span>
@@ -731,6 +766,28 @@ export default function CustomerManagement() {
                   />
                 </div>
               </div>
+
+              {!editItem && (
+                <div>
+                  <label className="mb-1 block text-xs text-gray-600">
+                    Mật khẩu <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    className={`${cls.input} w-full`}
+                    placeholder="Mật khẩu (ít nhất 6 ký tự)"
+                    value={form.password}
+                    onChange={(event) =>
+                      setForm((previous) => ({
+                        ...previous,
+                        password: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+
 
               <div>
                 <label className="mb-1 block text-xs text-gray-600">

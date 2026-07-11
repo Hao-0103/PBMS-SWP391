@@ -26,7 +26,6 @@ public class ReportController {
             @RequestParam(value = "keyword", required = false) String keyword,
             @RequestParam(value = "fromDate", required = false) String fromDate,
             @RequestParam(value = "toDate", required = false) String toDate,
-            @RequestParam(value = "laneId", required = false) Integer laneId,
             @RequestParam(value = "staffId", required = false) Integer staffId,
             @RequestParam(value = "ticketType", required = false) String ticketType
     ) {
@@ -49,7 +48,7 @@ public class ReportController {
         }
 
         List<VehicleReportResponse> list = reportService.getVehicleReport(
-                tab, keyword, from, to, laneId, staffId, ticketType
+                tab, keyword, from, to, staffId, ticketType
         );
 
         return ResponseEntity.ok(

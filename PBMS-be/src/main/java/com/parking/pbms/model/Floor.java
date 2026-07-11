@@ -29,6 +29,12 @@ public class Floor {
     @Column(name = "TotalSlots", nullable = false)
     private Integer totalSlots;
 
+    @Column(name = "TotalCarSlots", nullable = false)
+    private Integer totalCarSlots;
+
+    @Column(name = "TotalMotorcycleSlots", nullable = false)
+    private Integer totalMotorcycleSlots;
+
     @Column(name = "Note", length = 500)
     private String note;
 

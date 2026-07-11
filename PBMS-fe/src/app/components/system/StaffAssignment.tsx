@@ -1,17 +1,15 @@
 import { useState, useEffect } from "react";
 import {
-  Search, RotateCcw, Plus, RefreshCw, Ban, History,
-  X, Save, Users, MapPin, Clock, CheckCircle, AlertCircle, XCircle,
+  Search, RotateCcw, Plus, RefreshCw, Ban,
+  X, Save, Users, MapPin, Clock, CheckCircle, AlertCircle,
 } from "lucide-react";
 import { cls } from "../common/ui";
 import { DateInput, FilterGroup } from "../common/DateInput";
-import { Pagination } from "../common/Pagination";
 import {
   staffService,
   StaffAssignmentDto,
   StaffMinimalDto,
   WorkShiftDto,
-  LaneDto,
   FloorDto
 } from "../../../services/staffService";
 
@@ -44,15 +42,14 @@ function ShiftBadge({ label, time }: { label: string; time: string }) {
 
 // ─── Create/Assign Modal ──────────────────────────────────────────────────────
 interface CreateModalProps {
-  onSave: (payload: { workDate: string; shiftId: number; laneId: number; floorId: number; staffId: number; note?: string }) => Promise<void>;
+  onSave: (payload: { workDate: string; shiftId: number; floorId: number; staffId: number; note?: string }) => Promise<void>;
   onClose: () => void;
   shifts: WorkShiftDto[];
   staffList: StaffMinimalDto[];
-  lanes: LaneDto[];
   floors: FloorDto[];
 }
 
-function CreateModal({ onSave, onClose, shifts, staffList, lanes, floors }: CreateModalProps) {
+function CreateModal({ onSave, onClose, shifts, staffList, floors }: CreateModalProps) {
   const getTodayString = () => {
     const d = new Date();
     const year = d.getFullYear();
@@ -64,14 +61,13 @@ function CreateModal({ onSave, onClose, shifts, staffList, lanes, floors }: Crea
   const [ngay, setNgay] = useState(getTodayString());
   const [ca, setCa] = useState<number>(shifts[0]?.shiftId ?? 0);
   const [floorId, setFloorId] = useState<number>(floors[0]?.floorId ?? 0);
-  const [laneId, setLaneId] = useState<number>(lanes[0]?.laneId ?? 0);
   const [staffId, setStaffId] = useState<number>(0);
   const [ghiChu, setGhiChu] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!ngay || !ca || !laneId || !floorId || !staffId) {
+    if (!ngay || !ca || !floorId || !staffId) {
       setError("Vui lòng điền đầy đủ thông tin bắt buộc.");
       return;
     }
@@ -81,7 +77,6 @@ function CreateModal({ onSave, onClose, shifts, staffList, lanes, floors }: Crea
       await onSave({
         workDate: ngay,
         shiftId: ca,
-        laneId,
         floorId,
         staffId,
         note: ghiChu
@@ -100,7 +95,7 @@ function CreateModal({ onSave, onClose, shifts, staffList, lanes, floors }: Crea
         <div className="flex items-center justify-between px-5 py-3 bg-blue-600 rounded-t-lg">
           <div className="flex items-center gap-2">
             <Plus className="w-4 h-4 text-white" />
-            <span className="text-white text-sm font-semibold">Tạo phân công nhân viên</span>
+            <span className="text-white text-sm font-semibold">Tạo phân công nhân viên trực tầng</span>
           </div>
           <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
         </div>
@@ -129,25 +124,14 @@ function CreateModal({ onSave, onClose, shifts, staffList, lanes, floors }: Crea
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Tầng <span className="text-red-500">*</span></label>
-              <select className={`${cls.select} w-full`} value={floorId} onChange={e => { setFloorId(Number(e.target.value)); setError(""); }}>
-                <option value={0}>-- Chọn tầng --</option>
-                {floors.map(f => (
-                  <option key={f.floorId} value={f.floorId}>{f.floorName}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-600 mb-1">Vị trí / Làn xe <span className="text-red-500">*</span></label>
-              <select className={`${cls.select} w-full`} value={laneId} onChange={e => { setLaneId(Number(e.target.value)); setError(""); }}>
-                <option value={0}>-- Chọn làn --</option>
-                {lanes.map(l => (
-                  <option key={l.laneId} value={l.laneId}>{l.laneName} ({l.laneType === "ENTRY" ? "Vào" : "Ra"})</option>
-                ))}
-              </select>
-            </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Tầng trực <span className="text-red-500">*</span></label>
+            <select className={`${cls.select} w-full`} value={floorId} onChange={e => { setFloorId(Number(e.target.value)); setError(""); }}>
+              <option value={0}>-- Chọn tầng trực --</option>
+              {floors.map(f => (
+                <option key={f.floorId} value={f.floorId}>{f.floorName}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -248,12 +232,8 @@ function ReplaceModal({ assignment, onSave, onClose, staffList }: ReplaceModalPr
           {/* Info strip */}
           <div className="bg-blue-50 border border-blue-200 rounded p-3 space-y-1.5 text-xs">
             <div className="flex gap-2">
-              <span className="text-gray-500 w-32">Vị trí / Làn xe:</span>
-              <span className="font-semibold text-gray-800">{assignment.laneName}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-gray-500 w-32">Tầng:</span>
-              <span className="font-semibold text-gray-800">{assignment.floorName}</span>
+              <span className="text-gray-500 w-32">Vị trí trực:</span>
+              <span className="font-semibold text-gray-800">Tầng {assignment.floorName}</span>
             </div>
             <div className="flex gap-2">
               <span className="text-gray-500 w-32">Ca làm việc:</span>
@@ -329,7 +309,6 @@ export default function StaffAssignment() {
   const [assignments, setAssignments] = useState<StaffAssignmentDto[]>([]);
   const [shifts, setShifts] = useState<WorkShiftDto[]>([]);
   const [staffList, setStaffList] = useState<StaffMinimalDto[]>([]);
-  const [lanes, setLanes] = useState<LaneDto[]>([]);
   const [floors, setFloors] = useState<FloorDto[]>([]);
 
   // Filter UI states
@@ -347,15 +326,13 @@ export default function StaffAssignment() {
   useEffect(() => {
     async function loadCatalogs() {
       try {
-        const [shiftData, staffData, laneData, floorData] = await Promise.all([
+        const [shiftData, staffData, floorData] = await Promise.all([
           staffService.getShifts(),
           staffService.getActiveStaffList(),
-          staffService.getLanes(),
           staffService.getFloors()
         ]);
         setShifts(shiftData);
         setStaffList(staffData);
-        setLanes(laneData);
         setFloors(floorData);
       } catch (err: any) {
         setErrorMsg("Không thể tải danh mục cấu hình: " + err.message);
@@ -410,9 +387,9 @@ export default function StaffAssignment() {
   });
 
   // Simple statistics
-  const totalLanesCount = lanes.length;
+  const totalFloorsCount = floors.length;
   const assignedCount = assignments.filter(r => r.status !== "CANCELLED" && r.staffId).length;
-  const unassignedCount = lanes.length - assignedCount;
+  const unassignedCount = floors.length - assignedCount;
   const onDutyCount = assignments.filter(r => r.status === "ON_DUTY").length;
 
   return (
@@ -466,12 +443,11 @@ export default function StaffAssignment() {
       )}
 
       {/* ── Summary Stats cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Tổng vị trí / làn xe", value: totalLanesCount, icon: MapPin, color: "text-blue-600 bg-blue-50" },
+          { label: "Tổng số tầng", value: totalFloorsCount, icon: MapPin, color: "text-blue-600 bg-blue-50" },
           { label: "Đã phân công", value: assignedCount, icon: CheckCircle, color: "text-green-600 bg-green-50" },
           { label: "Chưa phân công", value: Math.max(0, unassignedCount), icon: AlertCircle, color: "text-amber-600 bg-amber-50" },
-          { label: "Nhân viên đang trực", value: onDutyCount, icon: Users, color: "text-purple-600 bg-purple-50" },
         ].map(({ label, value, icon: Icon, color }) => (
           <div key={label} className="bg-white border border-gray-200 rounded-lg shadow-sm px-4 py-3 flex items-center gap-3">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${color}`}>
@@ -490,7 +466,7 @@ export default function StaffAssignment() {
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50/50">
           <div className="flex items-center gap-2">
             <Clock className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">Danh sách phân công nhân viên</span>
+            <span className="text-sm font-bold text-gray-700 uppercase tracking-wider">Danh sách phân công nhân viên trực tầng</span>
           </div>
           <span className="text-xs font-semibold bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full border border-gray-200">
             Tổng: {filtered.length} bản ghi
@@ -504,9 +480,7 @@ export default function StaffAssignment() {
                 <th className={`${cls.th} w-12 text-center`}>STT</th>
                 <th className={cls.th}>Ngày</th>
                 <th className={cls.th}>Ca làm việc</th>
-                <th className={cls.th}>Tầng</th>
-                <th className={cls.th}>Vị trí / Làn xe</th>
-                <th className={cls.th}>Loại vị trí</th>
+                <th className={cls.th}>Tầng đỗ xe</th>
                 <th className={cls.th}>Nhân viên phụ trách</th>
                 <th className={cls.th}>Trạng thái</th>
                 <th className={cls.th}>Ghi chú</th>
@@ -516,7 +490,7 @@ export default function StaffAssignment() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-12 text-center text-gray-400 text-sm">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400 text-sm">
                     <div className="flex justify-center items-center gap-2">
                       <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
                       Đang tải danh sách phân công...
@@ -525,7 +499,7 @@ export default function StaffAssignment() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="text-center py-10 text-gray-400 text-sm">Không có dữ liệu phân công trực trong ngày này</td>
+                  <td colSpan={8} className="text-center py-10 text-gray-400 text-sm">Không có dữ liệu phân công trực trong ngày này</td>
                 </tr>
               ) : (
                 filtered.map((row, i) => {
@@ -542,17 +516,8 @@ export default function StaffAssignment() {
                       <td className="px-4 py-3.5 text-center whitespace-nowrap">
                         <ShiftBadge label={row.shiftName} time={row.shiftTime} />
                       </td>
-                      {/* Tầng Column */}
                       <td className="px-4 py-3.5 text-sm font-extrabold text-blue-600 whitespace-nowrap">
-                        {row.floorCode}
-                      </td>
-                      <td className="px-4 py-3.5 text-sm font-semibold text-gray-800 whitespace-nowrap">
-                        {row.laneName}
-                      </td>
-                      <td className="px-4 py-3.5 text-center">
-                        <span className={row.laneType === "ENTRY" ? cls.badge.blue : cls.badge.amber}>
-                          {row.laneType === "ENTRY" ? "Cổng vào" : "Cổng ra"}
-                        </span>
+                        {row.floorName} ({row.floorCode})
                       </td>
                       <td className="px-4 py-3.5">
                         {row.staffName ? (
@@ -612,7 +577,6 @@ export default function StaffAssignment() {
         <CreateModal
           shifts={shifts}
           staffList={staffList}
-          lanes={lanes}
           floors={floors}
           onSave={handleCreateAssignment}
           onClose={() => setShowCreate(false)}

@@ -1,24 +1,12 @@
-/*
-====================================================================
- PARKING BUILDING MANAGEMENT SYSTEM (PBMS)
- Database: Microsoft SQL Server
- Generated from frontend PBMS-fe(1)
-
- LUU YY:
- - Script KHONG xoa database/bang cu.
- - CardNo duoc tu dong sinh tu CardID, khong co cot DisplayCode/CardCode.
- - Mat khau mau cua admin, staff01, staff02, user01, user02 la: 123456
- - PasswordHash da ma hoa BCrypt, dung duoc voi Spring Security.
-====================================================================
-*/
-
 USE master;
 GO
 
-IF DB_ID(N'ParkingManagementDB') IS NULL
+IF DB_ID(N'ParkingManagementDB') IS NOT NULL
 BEGIN
-    CREATE DATABASE ParkingManagementDB;
+    ALTER DATABASE ParkingManagementDB SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    DROP DATABASE ParkingManagementDB;
 END;
+CREATE DATABASE ParkingManagementDB;
 GO
 
 USE ParkingManagementDB;
@@ -104,57 +92,31 @@ BEGIN
 END;
 GO
 
-IF OBJECT_ID(N'dbo.Customers', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Customers (
-        CustomerID      INT IDENTITY(1,1) PRIMARY KEY,
-        CustomerCode    AS ('CUS' + RIGHT('000000' + CONVERT(VARCHAR(10), CustomerID), 6)) PERSISTED,
-        AccountID       INT NULL,
-        FullName        NVARCHAR(100) NOT NULL,
-        Phone           VARCHAR(20) NULL,
-        Email           VARCHAR(100) NULL,
-        Address         NVARCHAR(255) NULL,
-        Note            NVARCHAR(500) NULL,
-        Status          VARCHAR(20) NOT NULL CONSTRAINT DF_Customers_Status DEFAULT 'ACTIVE',
-        CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Customers_CreatedAt DEFAULT SYSDATETIME(),
-        UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Customers_UpdatedAt DEFAULT SYSDATETIME(),
-        CONSTRAINT FK_Customers_Accounts FOREIGN KEY (AccountID) REFERENCES dbo.Accounts(AccountID),
-        CONSTRAINT CK_Customers_Status CHECK (Status IN ('ACTIVE', 'INACTIVE', 'LOCKED'))
-    );
-END;
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Customers_AccountID' AND object_id = OBJECT_ID('dbo.Customers'))
-    CREATE UNIQUE INDEX UX_Customers_AccountID ON dbo.Customers(AccountID) WHERE AccountID IS NOT NULL;
-GO
-
 IF OBJECT_ID(N'dbo.[User]', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.[User] (
         UserID                  INT IDENTITY(1,1) PRIMARY KEY,
         AccountID               INT NOT NULL UNIQUE,
-        CustomerID              INT NOT NULL UNIQUE,
         FullName                NVARCHAR(100) NOT NULL,
         Email                   VARCHAR(100) NOT NULL,
         Phone                   VARCHAR(20) NOT NULL,
         Address                 NVARCHAR(255) NOT NULL,
         Status                  VARCHAR(20) NOT NULL CONSTRAINT DF_User_Status DEFAULT 'ACTIVE',
         CreatedAt               DATETIME2(0) NOT NULL CONSTRAINT DF_User_CreatedAt DEFAULT SYSDATETIME(),
-        CONSTRAINT FK_User_Accounts FOREIGN KEY (AccountID) REFERENCES dbo.Accounts(AccountID),
-        CONSTRAINT FK_User_Customers FOREIGN KEY (CustomerID) REFERENCES dbo.Customers(CustomerID)
+        CONSTRAINT FK_User_Accounts FOREIGN KEY (AccountID) REFERENCES dbo.Accounts(AccountID)
     );
 END;
 GO
 
 /* ================================================================
-   2. VEHICLE, FLOOR, SLOT, LANE, SHIFT
+   2. VEHICLE, FLOOR, SLOT, SHIFT
    ================================================================ */
 
 IF OBJECT_ID(N'dbo.Vehicles', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Vehicles (
         VehicleID       INT IDENTITY(1,1) PRIMARY KEY,
-        CustomerID      INT NULL,
+        AccountID       INT NULL,
         PlateNo         VARCHAR(20) NOT NULL,
         VehicleType     VARCHAR(20) NOT NULL,
         Brand           NVARCHAR(50) NULL,
@@ -164,7 +126,7 @@ BEGIN
         CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Vehicles_CreatedAt DEFAULT SYSDATETIME(),
         UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Vehicles_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT UQ_Vehicles_PlateNo UNIQUE (PlateNo),
-        CONSTRAINT FK_Vehicles_Customers FOREIGN KEY (CustomerID) REFERENCES dbo.Customers(CustomerID),
+        CONSTRAINT FK_Vehicles_Accounts FOREIGN KEY (AccountID) REFERENCES dbo.Accounts(AccountID),
         CONSTRAINT CK_Vehicles_Type CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
         CONSTRAINT CK_Vehicles_Status CHECK (Status IN ('ACTIVE', 'INACTIVE', 'BLACKLISTED'))
     );
@@ -174,75 +136,26 @@ GO
 IF OBJECT_ID(N'dbo.Floors', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Floors (
-        FloorID         INT IDENTITY(1,1) PRIMARY KEY,
-        FloorCode       VARCHAR(10) NOT NULL UNIQUE,
-        FloorName       NVARCHAR(100) NOT NULL,
-        VehicleType     VARCHAR(20) NOT NULL,
-        TotalSlots      INT NOT NULL,
-        Note            NVARCHAR(500) NULL,
-        Status          VARCHAR(20) NOT NULL CONSTRAINT DF_Floors_Status DEFAULT 'ACTIVE',
-        CreatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Floors_CreatedAt DEFAULT SYSDATETIME(),
-        UpdatedAt       DATETIME2(0) NOT NULL CONSTRAINT DF_Floors_UpdatedAt DEFAULT SYSDATETIME(),
+        FloorID              INT IDENTITY(1,1) PRIMARY KEY,
+        FloorCode            VARCHAR(10) NOT NULL UNIQUE,
+        FloorName            NVARCHAR(100) NOT NULL,
+        VehicleType          VARCHAR(20) NOT NULL,
+        TotalSlots           INT NOT NULL,
+        TotalCarSlots        INT NOT NULL,
+        TotalMotorcycleSlots INT NOT NULL,
+        Note                 NVARCHAR(500) NULL,
+        Status               VARCHAR(20) NOT NULL CONSTRAINT DF_Floors_Status DEFAULT 'ACTIVE',
+        CreatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_Floors_CreatedAt DEFAULT SYSDATETIME(),
+        UpdatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_Floors_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT CK_Floors_Type CHECK (VehicleType IN ('MOTORCYCLE', 'CAR', 'BOTH')),
         CONSTRAINT CK_Floors_TotalSlots CHECK (TotalSlots >= 0),
+        CONSTRAINT CK_Floors_TotalCarSlots CHECK (TotalCarSlots >= 0),
+        CONSTRAINT CK_Floors_TotalMotorcycleSlots CHECK (TotalMotorcycleSlots >= 0),
         CONSTRAINT CK_Floors_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
     );
 END;
 GO
 
-IF OBJECT_ID(N'dbo.ParkingZones', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.ParkingZones (
-        ZoneID          INT IDENTITY(1,1) PRIMARY KEY,
-        FloorID         INT NOT NULL,
-        ZoneCode        VARCHAR(10) NOT NULL,
-        ZoneName        NVARCHAR(100) NULL,
-        Status          VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingZones_Status DEFAULT 'ACTIVE',
-        CONSTRAINT UQ_ParkingZones UNIQUE (FloorID, ZoneCode),
-        CONSTRAINT FK_ParkingZones_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
-        CONSTRAINT CK_ParkingZones_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
-    );
-END;
-GO
-
-IF OBJECT_ID(N'dbo.ParkingSlots', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.ParkingSlots (
-        SlotID          INT IDENTITY(1,1) PRIMARY KEY,
-        SlotCode        VARCHAR(20) NOT NULL UNIQUE,
-        FloorID         INT NOT NULL,
-        ZoneID          INT NOT NULL,
-        SlotNumber      INT NOT NULL,
-        VehicleType     VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingSlots_Type DEFAULT 'CAR',
-        Status          VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingSlots_Status DEFAULT 'AVAILABLE',
-        DisabledReason  NVARCHAR(500) NULL,
-        LastUpdatedAt   DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingSlots_UpdatedAt DEFAULT SYSDATETIME(),
-        CONSTRAINT UQ_ParkingSlots_Position UNIQUE (FloorID, ZoneID, SlotNumber),
-        CONSTRAINT FK_ParkingSlots_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
-        CONSTRAINT FK_ParkingSlots_Zones FOREIGN KEY (ZoneID) REFERENCES dbo.ParkingZones(ZoneID),
-        CONSTRAINT CK_ParkingSlots_Type CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
-        CONSTRAINT CK_ParkingSlots_Status CHECK (Status IN ('AVAILABLE', 'RESERVED', 'OCCUPIED', 'DISABLED')),
-        CONSTRAINT CK_ParkingSlots_Number CHECK (SlotNumber > 0)
-    );
-END;
-GO
-
-IF OBJECT_ID(N'dbo.Lanes', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.Lanes (
-        LaneID          INT IDENTITY(1,1) PRIMARY KEY,
-        LaneCode        VARCHAR(20) NOT NULL UNIQUE,
-        LaneName        NVARCHAR(100) NOT NULL,
-        LaneType        VARCHAR(10) NOT NULL,
-        VehicleType     VARCHAR(20) NOT NULL,
-        AreaName        NVARCHAR(100) NULL,
-        Status          VARCHAR(20) NOT NULL CONSTRAINT DF_Lanes_Status DEFAULT 'ACTIVE',
-        CONSTRAINT CK_Lanes_Type CHECK (LaneType IN ('ENTRY', 'EXIT')),
-        CONSTRAINT CK_Lanes_VehicleType CHECK (VehicleType IN ('MOTORCYCLE', 'CAR', 'BOTH')),
-        CONSTRAINT CK_Lanes_Status CHECK (Status IN ('ACTIVE', 'INACTIVE'))
-    );
-END;
-GO
 
 IF OBJECT_ID(N'dbo.WorkShifts', N'U') IS NULL
 BEGIN
@@ -263,7 +176,6 @@ BEGIN
     CREATE TABLE dbo.StaffAssignments (
         AssignmentID    BIGINT IDENTITY(1,1) PRIMARY KEY,
         StaffID         INT NULL,
-        LaneID          INT NOT NULL,
         FloorID         INT NOT NULL,
         ShiftID         INT NOT NULL,
         WorkDate        DATE NOT NULL,
@@ -274,19 +186,12 @@ BEGIN
         StartedAt       DATETIME2(0) NULL,
         EndedAt         DATETIME2(0) NULL,
         CONSTRAINT FK_StaffAssignments_Staff FOREIGN KEY (StaffID) REFERENCES dbo.Staff(StaffID),
-        CONSTRAINT FK_StaffAssignments_Lanes FOREIGN KEY (LaneID) REFERENCES dbo.Lanes(LaneID),
         CONSTRAINT FK_StaffAssignments_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
         CONSTRAINT FK_StaffAssignments_Shifts FOREIGN KEY (ShiftID) REFERENCES dbo.WorkShifts(ShiftID),
         CONSTRAINT FK_StaffAssignments_AssignedBy FOREIGN KEY (AssignedBy) REFERENCES dbo.Admin(AdminID),
         CONSTRAINT CK_StaffAssignments_Status CHECK (Status IN ('UNASSIGNED', 'ASSIGNED', 'ON_DUTY', 'COMPLETED', 'CANCELLED'))
     );
 END;
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_StaffAssignments_Lane' AND object_id = OBJECT_ID('dbo.StaffAssignments'))
-    CREATE UNIQUE INDEX UX_StaffAssignments_Lane
-    ON dbo.StaffAssignments(WorkDate, ShiftID, LaneID)
-    WHERE Status <> 'CANCELLED';
 GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_StaffAssignments_Staff' AND object_id = OBJECT_ID('dbo.StaffAssignments'))
@@ -296,7 +201,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_StaffAssignments_Staff
 GO
 
 /* ================================================================
-   3. CARD GROUPS AND CARDS
+   3. CARD GROUPS, CARDS AND BARCODE CARDS
    ================================================================ */
 
 IF OBJECT_ID(N'dbo.CardGroups', N'U') IS NULL
@@ -321,14 +226,23 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'dbo.BarcodeCards', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.BarcodeCards (
+        Barcode             VARCHAR(50) PRIMARY KEY,
+        IsActive            BIT NOT NULL CONSTRAINT DF_BarcodeCards_IsActive DEFAULT 1,
+        CreatedAt           DATETIME2(0) NOT NULL CONSTRAINT DF_BarcodeCards_CreatedAt DEFAULT SYSDATETIME()
+    );
+END;
+GO
+
 IF OBJECT_ID(N'dbo.Cards', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Cards (
         CardID              INT IDENTITY(1,1) PRIMARY KEY,
         CardNo              AS ('CARD' + RIGHT('000000' + CONVERT(VARCHAR(10), CardID), 6)) PERSISTED,
-        RFIDUID             VARCHAR(100) NULL,
         CardGroupID         INT NOT NULL,
-        CustomerID          INT NULL,
+        AccountID           INT NULL,
         VehicleID           INT NULL,
         PreferredFloorID    INT NULL,
         RegisteredAt        DATE NOT NULL CONSTRAINT DF_Cards_RegisteredAt DEFAULT CAST(SYSDATETIME() AS DATE),
@@ -340,17 +254,13 @@ BEGIN
         UpdatedAt           DATETIME2(0) NOT NULL CONSTRAINT DF_Cards_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT UQ_Cards_CardNo UNIQUE (CardNo),
         CONSTRAINT FK_Cards_CardGroups FOREIGN KEY (CardGroupID) REFERENCES dbo.CardGroups(CardGroupID),
-        CONSTRAINT FK_Cards_Customers FOREIGN KEY (CustomerID) REFERENCES dbo.Customers(CustomerID),
+        CONSTRAINT FK_Cards_Accounts FOREIGN KEY (AccountID) REFERENCES dbo.Accounts(AccountID),
         CONSTRAINT FK_Cards_Vehicles FOREIGN KEY (VehicleID) REFERENCES dbo.Vehicles(VehicleID),
         CONSTRAINT FK_Cards_Floors FOREIGN KEY (PreferredFloorID) REFERENCES dbo.Floors(FloorID),
         CONSTRAINT CK_Cards_Status CHECK (Status IN ('PENDING', 'ACTIVE', 'EXPIRING', 'EXPIRED', 'LOCKED', 'INACTIVE')),
         CONSTRAINT CK_Cards_Date CHECK (ExpireAt IS NULL OR ExpireAt >= EffectiveFrom)
     );
 END;
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Cards_RFIDUID' AND object_id = OBJECT_ID('dbo.Cards'))
-    CREATE UNIQUE INDEX UX_Cards_RFIDUID ON dbo.Cards(RFIDUID) WHERE RFIDUID IS NOT NULL;
 GO
 
 /* ================================================================
@@ -368,9 +278,6 @@ BEGIN
         ReservationDate     DATE NOT NULL,
         ExpectedArrivalTime TIME(0) NOT NULL,
         FloorID             INT NOT NULL,
-        ZoneID              INT NOT NULL,
-        OriginalSlotID      INT NOT NULL,
-        CurrentSlotID       INT NOT NULL,
         Status              VARCHAR(40) NOT NULL CONSTRAINT DF_Reservations_Status DEFAULT 'CONFIRMED',
         IsActive            BIT NOT NULL CONSTRAINT DF_Reservations_IsActive DEFAULT 1,
         UserRespondedAt     DATETIME2(0) NULL,
@@ -388,9 +295,6 @@ BEGIN
         CONSTRAINT FK_Reservations_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
         CONSTRAINT FK_Reservations_Vehicles FOREIGN KEY (VehicleID) REFERENCES dbo.Vehicles(VehicleID),
         CONSTRAINT FK_Reservations_Floors FOREIGN KEY (FloorID) REFERENCES dbo.Floors(FloorID),
-        CONSTRAINT FK_Reservations_Zones FOREIGN KEY (ZoneID) REFERENCES dbo.ParkingZones(ZoneID),
-        CONSTRAINT FK_Reservations_OriginalSlot FOREIGN KEY (OriginalSlotID) REFERENCES dbo.ParkingSlots(SlotID),
-        CONSTRAINT FK_Reservations_CurrentSlot FOREIGN KEY (CurrentSlotID) REFERENCES dbo.ParkingSlots(SlotID),
         CONSTRAINT CK_Reservations_Status CHECK (Status IN (
             'CONFIRMED', 'AWAITING_USER_CONFIRMATION', 'REASSIGNMENT_REQUIRED',
             'CHECKED_IN', 'COMPLETED', 'CANCELLED_BY_USER', 'CANCELLED_BY_SYSTEM', 'NO_SHOW'
@@ -405,22 +309,16 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Reservations_VehicleDa
     WHERE IsActive = 1;
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'UX_Reservations_SlotDateActive' AND object_id = OBJECT_ID('dbo.Reservations'))
-    CREATE UNIQUE INDEX UX_Reservations_SlotDateActive
-    ON dbo.Reservations(CurrentSlotID, ReservationDate)
-    WHERE IsActive = 1;
-GO
-
 /* ================================================================
-   5. VEHICLE ENTRY/EXIT, TICKETS, ACCESS LOG
+   5. VEHICLE ENTRY/EXIT, SESSIONS
    ================================================================ */
 
-IF OBJECT_ID(N'dbo.ParkingTickets', N'U') IS NULL
+IF OBJECT_ID(N'dbo.ParkingSessions', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.ParkingTickets (
+    CREATE TABLE dbo.ParkingSessions (
         TicketID             BIGINT IDENTITY(1,1) PRIMARY KEY,
         TicketNo             AS ('TK' + RIGHT('000000' + CONVERT(VARCHAR(20), TicketID), 6)) PERSISTED,
-        QRToken              VARCHAR(500) NOT NULL,
+        Barcode              VARCHAR(500) NOT NULL,
         CardID               INT NULL,
         VehicleID            INT NULL,
         ReservationID        BIGINT NULL,
@@ -430,42 +328,33 @@ BEGIN
         EntryImage           VARCHAR(MAX) NULL,
         ExitImage            VARCHAR(MAX) NULL,
         EntryFloorID         INT NOT NULL,
-        ParkingSlotID        INT NULL,
-        SuggestedSlotID      INT NULL,
-        SlotOverrideReason   NVARCHAR(500) NULL,
-        EntryLaneID          INT NOT NULL,
-        ExitLaneID           INT NULL,
         EntryStaffID         INT NOT NULL,
         ExitStaffID          INT NULL,
-        CheckInAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingTickets_CheckIn DEFAULT SYSDATETIME(),
+        CheckInAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingSessions_CheckIn DEFAULT SYSDATETIME(),
         CheckOutAt           DATETIME2(0) NULL,
-        FeeAmount            DECIMAL(18,2) NOT NULL CONSTRAINT DF_ParkingTickets_Fee DEFAULT 0,
-        PenaltyAmount        DECIMAL(18,2) NOT NULL CONSTRAINT DF_ParkingTickets_Penalty DEFAULT 0,
+        FeeAmount            DECIMAL(18,2) NOT NULL CONSTRAINT DF_ParkingSessions_Fee DEFAULT 0,
+        PenaltyAmount        DECIMAL(18,2) NOT NULL CONSTRAINT DF_ParkingSessions_Penalty DEFAULT 0,
         ViolationReason      NVARCHAR(500) NULL,
-        Status               VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingTickets_Status DEFAULT 'ACTIVE',
-        ForceCheckout        BIT NOT NULL CONSTRAINT DF_ParkingTickets_Force DEFAULT 0,
+        Status               VARCHAR(20) NOT NULL CONSTRAINT DF_ParkingSessions_Status DEFAULT 'ACTIVE',
+        ForceCheckout        BIT NOT NULL CONSTRAINT DF_ParkingSessions_Force DEFAULT 0,
         ForceCheckoutReason  NVARCHAR(500) NULL,
-        CreatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingTickets_CreatedAt DEFAULT SYSDATETIME(),
-        UpdatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingTickets_UpdatedAt DEFAULT SYSDATETIME(),
-        CONSTRAINT UQ_ParkingTickets_No UNIQUE (TicketNo),
-        CONSTRAINT UQ_ParkingTickets_QR UNIQUE (QRToken),
-        CONSTRAINT FK_ParkingTickets_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
-        CONSTRAINT FK_ParkingTickets_Vehicles FOREIGN KEY (VehicleID) REFERENCES dbo.Vehicles(VehicleID),
-        CONSTRAINT FK_ParkingTickets_Reservations FOREIGN KEY (ReservationID) REFERENCES dbo.Reservations(ReservationID),
-        CONSTRAINT FK_ParkingTickets_Floor FOREIGN KEY (EntryFloorID) REFERENCES dbo.Floors(FloorID),
-        CONSTRAINT FK_ParkingTickets_Slot FOREIGN KEY (ParkingSlotID) REFERENCES dbo.ParkingSlots(SlotID),
-        CONSTRAINT FK_ParkingTickets_SuggestedSlot FOREIGN KEY (SuggestedSlotID) REFERENCES dbo.ParkingSlots(SlotID),
-        CONSTRAINT FK_ParkingTickets_EntryLane FOREIGN KEY (EntryLaneID) REFERENCES dbo.Lanes(LaneID),
-        CONSTRAINT FK_ParkingTickets_ExitLane FOREIGN KEY (ExitLaneID) REFERENCES dbo.Lanes(LaneID),
-        CONSTRAINT FK_ParkingTickets_EntryStaff FOREIGN KEY (EntryStaffID) REFERENCES dbo.Staff(StaffID),
-        CONSTRAINT FK_ParkingTickets_ExitStaff FOREIGN KEY (ExitStaffID) REFERENCES dbo.Staff(StaffID),
-        CONSTRAINT CK_ParkingTickets_TicketType CHECK (TicketType IN ('SINGLE', 'DAY', 'MONTHLY')),
-        CONSTRAINT CK_ParkingTickets_VehicleType CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
-        CONSTRAINT CK_ParkingTickets_Status CHECK (Status IN ('ACTIVE', 'PAID', 'COMPLETED', 'CANCELLED', 'LOST')),
-        CONSTRAINT CK_ParkingTickets_Fee CHECK (FeeAmount >= 0),
-        CONSTRAINT CK_ParkingTickets_Penalty CHECK (PenaltyAmount >= 0),
-        CONSTRAINT CK_ParkingTickets_CheckOut CHECK (CheckOutAt IS NULL OR CheckOutAt >= CheckInAt),
-        CONSTRAINT CK_ParkingTickets_ForceReason CHECK (ForceCheckout = 0 OR ForceCheckoutReason IS NOT NULL)
+        CreatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingSessions_CreatedAt DEFAULT SYSDATETIME(),
+        UpdatedAt            DATETIME2(0) NOT NULL CONSTRAINT DF_ParkingSessions_UpdatedAt DEFAULT SYSDATETIME(),
+        CONSTRAINT UQ_ParkingSessions_No UNIQUE (TicketNo),
+        CONSTRAINT UQ_ParkingSessions_Barcode UNIQUE (Barcode),
+        CONSTRAINT FK_ParkingSessions_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
+        CONSTRAINT FK_ParkingSessions_Vehicles FOREIGN KEY (VehicleID) REFERENCES dbo.Vehicles(VehicleID),
+        CONSTRAINT FK_ParkingSessions_Reservations FOREIGN KEY (ReservationID) REFERENCES dbo.Reservations(ReservationID),
+        CONSTRAINT FK_ParkingSessions_Floor FOREIGN KEY (EntryFloorID) REFERENCES dbo.Floors(FloorID),
+        CONSTRAINT FK_ParkingSessions_EntryStaff FOREIGN KEY (EntryStaffID) REFERENCES dbo.Staff(StaffID),
+        CONSTRAINT FK_ParkingSessions_ExitStaff FOREIGN KEY (ExitStaffID) REFERENCES dbo.Staff(StaffID),
+        CONSTRAINT CK_ParkingSessions_TicketType CHECK (TicketType IN ('SINGLE', 'DAY', 'MONTHLY')),
+        CONSTRAINT CK_ParkingSessions_VehicleType CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
+        CONSTRAINT CK_ParkingSessions_Status CHECK (Status IN ('ACTIVE', 'PAID', 'COMPLETED', 'CANCELLED', 'LOST')),
+        CONSTRAINT CK_ParkingSessions_Fee CHECK (FeeAmount >= 0),
+        CONSTRAINT CK_ParkingSessions_Penalty CHECK (PenaltyAmount >= 0),
+        CONSTRAINT CK_ParkingSessions_CheckOut CHECK (CheckOutAt IS NULL OR CheckOutAt >= CheckInAt),
+        CONSTRAINT CK_ParkingSessions_ForceReason CHECK (ForceCheckout = 0 OR ForceCheckoutReason IS NOT NULL)
     );
 END;
 GO
@@ -499,14 +388,13 @@ BEGIN
         CONSTRAINT UQ_Requests_No UNIQUE (RequestNo),
         CONSTRAINT FK_Requests_Sender FOREIGN KEY (SenderAccountID) REFERENCES dbo.Accounts(AccountID),
         CONSTRAINT FK_Requests_AssignedStaff FOREIGN KEY (AssignedStaffID) REFERENCES dbo.Staff(StaffID),
-        CONSTRAINT FK_Requests_Tickets FOREIGN KEY (TicketID) REFERENCES dbo.ParkingTickets(TicketID),
+        CONSTRAINT FK_Requests_Tickets FOREIGN KEY (TicketID) REFERENCES dbo.ParkingSessions(TicketID),
         CONSTRAINT FK_Requests_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
         CONSTRAINT FK_Requests_Reservations FOREIGN KEY (ReservationID) REFERENCES dbo.Reservations(ReservationID),
         CONSTRAINT FK_Requests_Vehicles FOREIGN KEY (VehicleID) REFERENCES dbo.Vehicles(VehicleID),
         CONSTRAINT CK_Requests_Type CHECK (RequestType IN (
-            'LOST_TICKET', 'WRONG_VEHICLE_INFO', 'SUPPORT', 'WRONG_SLOT_REPORT',
-            'CANNOT_ENTER', 'CANNOT_EXIT', 'MONTHLY_CARD_ERROR', 'PENALTY_APPEAL',
-            'VEHICLE_INFORMATION_UPDATE', 'REFUND_NOT_RECEIVED', 'CHANGE_SHIFT', 'OTHER'
+            'LOST_CARD', 'CARD_RENEWAL', 'CARD_REGISTRATION', 'PLATE_CORRECTION',
+            'VEHICLE_TYPE_CORRECTION', 'CHECKIN_TIME_CORRECTION', 'OVERDUE_COMPLAINT', 'OTHER'
         )),
         CONSTRAINT CK_Requests_Priority CHECK (Priority IN ('LOW', 'NORMAL', 'HIGH', 'URGENT')),
         CONSTRAINT CK_Requests_Status CHECK (Status IN ('PENDING', 'PROCESSING', 'APPROVED', 'RESOLVED', 'REJECTED', 'CANCELLED'))
@@ -522,22 +410,23 @@ IF OBJECT_ID(N'dbo.Payments', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Payments (
         PaymentID         BIGINT IDENTITY(1,1) PRIMARY KEY,
-        PaymentNo         AS ('PAY' + RIGHT('000000' + CONVERT(VARCHAR(20), PaymentID), 6)) PERSISTED,
-        PayerAccountID    INT NULL,
+        PaymentNo         AS ('PMT' + RIGHT('000000' + CONVERT(VARCHAR(20), PaymentID), 6)) PERSISTED,
+        PayerAccountID    INT NOT NULL,
         TicketID          BIGINT NULL,
         CardID            INT NULL,
-        PaymentType       VARCHAR(30) NOT NULL,
         Amount            DECIMAL(18,2) NOT NULL,
-        PaymentMethod     VARCHAR(30) NOT NULL,
+        PaymentType       VARCHAR(30) NOT NULL,
+        PaymentMethod     VARCHAR(20) NOT NULL,
         Gateway           VARCHAR(30) NULL,
         ReferenceCode     VARCHAR(100) NULL,
         Status            VARCHAR(20) NOT NULL CONSTRAINT DF_Payments_Status DEFAULT 'PENDING',
+        Note              NVARCHAR(500) NULL,
         PaidAt            DATETIME2(0) NULL,
         CreatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_Payments_CreatedAt DEFAULT SYSDATETIME(),
         UpdatedAt         DATETIME2(0) NOT NULL CONSTRAINT DF_Payments_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT UQ_Payments_No UNIQUE (PaymentNo),
         CONSTRAINT FK_Payments_Accounts FOREIGN KEY (PayerAccountID) REFERENCES dbo.Accounts(AccountID),
-        CONSTRAINT FK_Payments_Tickets FOREIGN KEY (TicketID) REFERENCES dbo.ParkingTickets(TicketID),
+        CONSTRAINT FK_Payments_Tickets FOREIGN KEY (TicketID) REFERENCES dbo.ParkingSessions(TicketID),
         CONSTRAINT FK_Payments_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
         CONSTRAINT CK_Payments_Type CHECK (PaymentType IN ('PARKING_FEE', 'CARD_REGISTRATION', 'CARD_RENEWAL', 'PENALTY', 'REFUND')),
         CONSTRAINT CK_Payments_Method CHECK (PaymentMethod IN ('CASH', 'VIETQR', 'MOMO', 'ZALOPAY', 'VNPAY', 'BANK_TRANSFER', 'OTHER')),
@@ -556,12 +445,12 @@ BEGIN
     CREATE TABLE dbo.CardHistories (
         CardHistoryID   BIGINT IDENTITY(1,1) PRIMARY KEY,
         CardID          INT NOT NULL,
-        ActionType      VARCHAR(30) NOT NULL,
         PerformedBy     INT NOT NULL,
+        ActionType      VARCHAR(20) NOT NULL,
+        DurationMonths  INT NULL,
         PaymentID       BIGINT NULL,
         OldExpireAt     DATE NULL,
         NewExpireAt     DATE NULL,
-        DurationMonths  INT NULL,
         Detail          NVARCHAR(500) NULL,
         ActionAt        DATETIME2(0) NOT NULL CONSTRAINT DF_CardHistories_ActionAt DEFAULT SYSDATETIME(),
         CONSTRAINT FK_CardHistories_Cards FOREIGN KEY (CardID) REFERENCES dbo.Cards(CardID),
@@ -572,10 +461,6 @@ BEGIN
     );
 END;
 GO
-
-/* ================================================================
-   9. VIOLATION RULES
-   ================================================================ */
 
 IF OBJECT_ID(N'dbo.ViolationRules', N'U') IS NULL
 BEGIN
@@ -591,7 +476,7 @@ BEGIN
         CreatedAt           DATETIME2(0) NOT NULL CONSTRAINT DF_ViolationRules_CreatedAt DEFAULT SYSDATETIME(),
         UpdatedAt           DATETIME2(0) NOT NULL CONSTRAINT DF_ViolationRules_UpdatedAt DEFAULT SYSDATETIME(),
         CONSTRAINT CK_ViolationRules_TicketType CHECK (TicketType IN ('SINGLE', 'DAY', 'MONTHLY')),
-        CONSTRAINT CK_ViolationRules_VehicleType CHECK (VehicleType IN ('MOTORCYCLE', 'CAR')),
+        CONSTRAINT CK_ViolationRules_VehicleType CHECK (ViolationRules.VehicleType IN ('MOTORCYCLE', 'CAR')),
         CONSTRAINT CK_ViolationRules_Duration CHECK (MaxDurationHours >= 0),
         CONSTRAINT CK_ViolationRules_Penalty CHECK (PenaltyPerHour >= 0)
     );
@@ -602,23 +487,20 @@ GO
    10. INDEXES
    ================================================================ */
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cards_Customer_Status' AND object_id = OBJECT_ID('dbo.Cards'))
-    CREATE INDEX IX_Cards_Customer_Status ON dbo.Cards(CustomerID, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cards_Account_Status' AND object_id = OBJECT_ID('dbo.Cards'))
+    CREATE INDEX IX_Cards_Account_Status ON dbo.Cards(AccountID, Status);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Cards_ExpireAt' AND object_id = OBJECT_ID('dbo.Cards'))
     CREATE INDEX IX_Cards_ExpireAt ON dbo.Cards(ExpireAt);
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingSlots_Floor_Status' AND object_id = OBJECT_ID('dbo.ParkingSlots'))
-    CREATE INDEX IX_ParkingSlots_Floor_Status ON dbo.ParkingSlots(FloorID, Status);
-GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Reservations_Date_Status' AND object_id = OBJECT_ID('dbo.Reservations'))
     CREATE INDEX IX_Reservations_Date_Status ON dbo.Reservations(ReservationDate, Status);
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingTickets_CheckIn_Status' AND object_id = OBJECT_ID('dbo.ParkingTickets'))
-    CREATE INDEX IX_ParkingTickets_CheckIn_Status ON dbo.ParkingTickets(CheckInAt, Status);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingSessions_CheckIn_Status' AND object_id = OBJECT_ID('dbo.ParkingSessions'))
+    CREATE INDEX IX_ParkingSessions_CheckIn_Status ON dbo.ParkingSessions(CheckInAt, Status);
 GO
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingTickets_Plate' AND object_id = OBJECT_ID('dbo.ParkingTickets'))
-    CREATE INDEX IX_ParkingTickets_Plate ON dbo.ParkingTickets(PlateNoSnapshot);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_ParkingSessions_Plate' AND object_id = OBJECT_ID('dbo.ParkingSessions'))
+    CREATE INDEX IX_ParkingSessions_Plate ON dbo.ParkingSessions(PlateNoSnapshot);
 GO
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Requests_Status_Type' AND object_id = OBJECT_ID('dbo.Requests'))
     CREATE INDEX IX_Requests_Status_Type ON dbo.Requests(Status, RequestType, CreatedAt DESC);
@@ -629,9 +511,11 @@ GO
    ================================================================ */
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'ADMIN')
-    INSERT dbo.Roles(RoleName, Description) VALUES ('ADMIN', N'Quản trị hệ thống');
+    INSERT dbo.Roles(RoleName, Description) VALUES ('ADMIN', N'Quản trị viên hệ thống');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'STAFF')
-    INSERT dbo.Roles(RoleName, Description) VALUES ('STAFF', N'Nhân viên bãi xe');
+    INSERT dbo.Roles(RoleName, Description) VALUES ('STAFF', N'Nhân viên vận hành bãi xe');
+
 IF NOT EXISTS (SELECT 1 FROM dbo.Roles WHERE RoleName = 'USER')
     INSERT dbo.Roles(RoleName, Description) VALUES ('USER', N'Khách hàng có tài khoản');
 GO
@@ -706,154 +590,66 @@ IF NOT EXISTS (SELECT 1 FROM dbo.Staff sp JOIN dbo.Accounts a ON a.AccountID = s
     WHERE a.Username = 'staff02';
 GO
 
-IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE Email = 'khoiotaku1907@gmail.com')
-    INSERT dbo.Customers(AccountID, FullName, Phone, Email, Address, Status)
-    SELECT AccountID, FullName, Phone, Email, Address, 'ACTIVE' FROM dbo.Accounts WHERE Username = 'user01';
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE Email = 'user02@gmail.com')
-    INSERT dbo.Customers(AccountID, FullName, Phone, Email, Address, Status)
-    SELECT AccountID, FullName, Phone, Email, Address, 'ACTIVE' FROM dbo.Accounts WHERE Username = 'user02';
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE Email = 'levancuong@gmail.com')
-    INSERT dbo.Customers(FullName, Phone, Email, Address, Note, Status)
-    VALUES (N'Lê Văn Cường', '0905555777', 'levancuong@gmail.com', N'789 Trần Hưng Đạo, Quận 5, TP. Hồ Chí Minh', N'Khách hàng tại quầy', 'ACTIVE');
-GO
-
 IF NOT EXISTS (SELECT 1 FROM dbo.[User] up JOIN dbo.Accounts a ON a.AccountID = up.AccountID WHERE a.Username = 'user01')
-    INSERT dbo.[User](AccountID, CustomerID, FullName, Email, Phone, Address, Status)
+    INSERT dbo.[User](AccountID, FullName, Email, Phone, Address, Status)
     SELECT
         a.AccountID,
-        c.CustomerID,
-        COALESCE(a.FullName, c.FullName, N'Nguyễn Văn An'),
-        COALESCE(a.Email, c.Email, 'khoiotaku1907@gmail.com'),
-        COALESCE(a.Phone, c.Phone, '0901234567'),
-        COALESCE(a.Address, c.Address, N'123 Lê Lợi, Quận 1, TP. Hồ Chí Minh'),
+        COALESCE(a.FullName, N'Nguyễn Văn An'),
+        COALESCE(a.Email, 'khoiotaku1907@gmail.com'),
+        COALESCE(a.Phone, '0901234567'),
+        COALESCE(a.Address, N'123 Lê Lợi, Quận 1, TP. Hồ Chí Minh'),
         COALESCE(a.Status, 'ACTIVE')
     FROM dbo.Accounts a
-    JOIN dbo.Customers c ON c.AccountID = a.AccountID
     WHERE a.Username = 'user01';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.[User] up JOIN dbo.Accounts a ON a.AccountID = up.AccountID WHERE a.Username = 'user02')
-    INSERT dbo.[User](AccountID, CustomerID, FullName, Email, Phone, Address, Status)
+    INSERT dbo.[User](AccountID, FullName, Email, Phone, Address, Status)
     SELECT
         a.AccountID,
-        c.CustomerID,
-        COALESCE(a.FullName, c.FullName, N'Trần Thị Bích'),
-        COALESCE(a.Email, c.Email, 'user02@gmail.com'),
-        COALESCE(a.Phone, c.Phone, '0909876543'),
-        COALESCE(a.Address, c.Address, N'456 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh'),
+        COALESCE(a.FullName, N'Trần Thị Bích'),
+        COALESCE(a.Email, 'user02@gmail.com'),
+        COALESCE(a.Phone, '0909876543'),
+        COALESCE(a.Address, N'456 Nguyễn Huệ, Quận 1, TP. Hồ Chí Minh'),
         COALESCE(a.Status, 'ACTIVE')
     FROM dbo.Accounts a
-    JOIN dbo.Customers c ON c.AccountID = a.AccountID
     WHERE a.Username = 'user02';
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '29X1-123.45')
-    INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
-    SELECT CustomerID, '29X1-123.45', 'MOTORCYCLE', N'Honda', N'Đen' FROM dbo.Customers WHERE Email = 'khoiotaku1907@gmail.com';
+    INSERT dbo.Vehicles(AccountID, PlateNo, VehicleType, Brand, Color)
+    SELECT AccountID, '29X1-123.45', 'MOTORCYCLE', N'Honda', N'Đen' FROM dbo.Accounts WHERE Username = 'user01';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '51A-123.45')
-    INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
-    SELECT CustomerID, '51A-123.45', 'CAR', N'Toyota', N'Trắng' FROM dbo.Customers WHERE Email = 'khoiotaku1907@gmail.com';
+    INSERT dbo.Vehicles(AccountID, PlateNo, VehicleType, Brand, Color)
+    SELECT AccountID, '51A-123.45', 'CAR', N'Toyota', N'Trắng' FROM dbo.Accounts WHERE Username = 'user01';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '43A-999.11')
-    INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
-    SELECT CustomerID, '43A-999.11', 'MOTORCYCLE', N'Yamaha', N'Xanh' FROM dbo.Customers WHERE Email = 'user02@gmail.com';
+    INSERT dbo.Vehicles(AccountID, PlateNo, VehicleType, Brand, Color)
+    SELECT AccountID, '43A-999.11', 'MOTORCYCLE', N'Yamaha', N'Xanh' FROM dbo.Accounts WHERE Username = 'user02';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '51F-888.88')
-    INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
-    SELECT CustomerID, '51F-888.88', 'CAR', N'Kia', N'Đen' FROM dbo.Customers WHERE Email = 'user02@gmail.com';
+    INSERT dbo.Vehicles(AccountID, PlateNo, VehicleType, Brand, Color)
+    SELECT AccountID, '51F-888.88', 'CAR', N'Kia', N'Đen' FROM dbo.Accounts WHERE Username = 'user02';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Vehicles WHERE PlateNo = '59A-123.45')
-    INSERT dbo.Vehicles(CustomerID, PlateNo, VehicleType, Brand, Color)
-    SELECT CustomerID, '59A-123.45', 'MOTORCYCLE', N'Honda', N'Đỏ' FROM dbo.Customers WHERE Email = 'levancuong@gmail.com';
+    INSERT dbo.Vehicles(AccountID, PlateNo, VehicleType, Brand, Color)
+    VALUES (NULL, '59A-123.45', 'MOTORCYCLE', N'Honda', N'Đỏ');
 GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Floors WHERE FloorCode = 'B1')
-    INSERT dbo.Floors(FloorCode, FloorName, VehicleType, TotalSlots, Note) VALUES ('B1', N'Tầng B1', 'BOTH', 80, N'Tầng B1 - Ô tô & Xe máy');
+    INSERT dbo.Floors(FloorCode, FloorName, VehicleType, TotalSlots, TotalCarSlots, TotalMotorcycleSlots, Note) 
+    VALUES ('B1', N'Tầng B1', 'BOTH', 80, 40, 40, N'Tầng B1 - Ô tô & Xe máy');
 ELSE
-    UPDATE dbo.Floors SET VehicleType = 'BOTH', TotalSlots = 80, FloorName = N'Tầng B1' WHERE FloorCode = 'B1';
+    UPDATE dbo.Floors SET VehicleType = 'BOTH', TotalSlots = 80, TotalCarSlots = 40, TotalMotorcycleSlots = 40, FloorName = N'Tầng B1' WHERE FloorCode = 'B1';
 
 IF NOT EXISTS (SELECT 1 FROM dbo.Floors WHERE FloorCode = 'B2')
-    INSERT dbo.Floors(FloorCode, FloorName, VehicleType, TotalSlots, Note) VALUES ('B2', N'Tầng B2', 'BOTH', 100, N'Tầng B2 - Ô tô & Xe máy');
+    INSERT dbo.Floors(FloorCode, FloorName, VehicleType, TotalSlots, TotalCarSlots, TotalMotorcycleSlots, Note) 
+    VALUES ('B2', N'Tầng B2', 'BOTH', 100, 50, 50, N'Tầng B2 - Ô tô & Xe máy');
 ELSE
-    UPDATE dbo.Floors SET VehicleType = 'BOTH', TotalSlots = 100, FloorName = N'Tầng B2' WHERE FloorCode = 'B2';
-
-IF EXISTS (SELECT 1 FROM dbo.Floors WHERE FloorCode = 'B3')
-BEGIN
-    DECLARE @B3_ID INT;
-    SELECT @B3_ID = FloorID FROM dbo.Floors WHERE FloorCode = 'B3';
-    DELETE FROM dbo.ParkingSlots WHERE FloorID = @B3_ID;
-    DELETE FROM dbo.ParkingZones WHERE FloorID = @B3_ID;
-    DELETE FROM dbo.Floors WHERE FloorID = @B3_ID;
-END;
+    UPDATE dbo.Floors SET VehicleType = 'BOTH', TotalSlots = 100, TotalCarSlots = 50, TotalMotorcycleSlots = 50, FloorName = N'Tầng B2' WHERE FloorCode = 'B2';
 GO
 
-DECLARE @FloorCode VARCHAR(10);
-DECLARE @FloorID INT;
-DECLARE @ZoneCode VARCHAR(10);
-DECLARE @ZoneID INT;
-DECLARE @i INT;
 
-DECLARE floor_cursor CURSOR LOCAL FAST_FORWARD FOR SELECT FloorCode FROM dbo.Floors WHERE FloorCode IN ('B1','B2');
-OPEN floor_cursor;
-FETCH NEXT FROM floor_cursor INTO @FloorCode;
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    SELECT @FloorID = FloorID FROM dbo.Floors WHERE FloorCode = @FloorCode;
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = 'A')
-        INSERT dbo.ParkingZones(FloorID, ZoneCode, ZoneName) VALUES (@FloorID, 'A', N'Khu A');
-
-    IF NOT EXISTS (SELECT 1 FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = 'B')
-        INSERT dbo.ParkingZones(FloorID, ZoneCode, ZoneName) VALUES (@FloorID, 'B', N'Khu B');
-
-    SET @ZoneCode = 'A';
-    SELECT @ZoneID = ZoneID FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = @ZoneCode;
-    SET @i = 1;
-    WHILE @i <= 20
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM dbo.ParkingSlots WHERE SlotCode = @FloorCode + '-A' + RIGHT('00' + CONVERT(VARCHAR(2), @i), 2))
-            INSERT dbo.ParkingSlots(SlotCode, FloorID, ZoneID, SlotNumber, VehicleType, Status)
-            VALUES (@FloorCode + '-A' + RIGHT('00' + CONVERT(VARCHAR(2), @i), 2), @FloorID, @ZoneID, @i, 'CAR', 'AVAILABLE');
-        SET @i += 1;
-    END;
-
-    SET @ZoneCode = 'B';
-    SELECT @ZoneID = ZoneID FROM dbo.ParkingZones WHERE FloorID = @FloorID AND ZoneCode = @ZoneCode;
-    SET @i = 1;
-    DECLARE @MaxMotorcycles INT;
-    SET @MaxMotorcycles = CASE WHEN @FloorCode = 'B1' THEN 60 ELSE 80 END;
-
-    WHILE @i <= @MaxMotorcycles
-    BEGIN
-        IF NOT EXISTS (SELECT 1 FROM dbo.ParkingSlots WHERE SlotCode = @FloorCode + '-B' + RIGHT('00' + CONVERT(VARCHAR(2), @i), 2))
-            INSERT dbo.ParkingSlots(SlotCode, FloorID, ZoneID, SlotNumber, VehicleType, Status)
-            VALUES (@FloorCode + '-B' + RIGHT('00' + CONVERT(VARCHAR(2), @i), 2), @FloorID, @ZoneID, @i, 'MOTORCYCLE', 'AVAILABLE');
-        SET @i += 1;
-    END;
-
-    FETCH NEXT FROM floor_cursor INTO @FloorCode;
-END;
-CLOSE floor_cursor;
-DEALLOCATE floor_cursor;
-GO
-
-UPDATE dbo.ParkingSlots SET Status = 'OCCUPIED', LastUpdatedAt = SYSDATETIME() WHERE SlotCode IN ('B1-A03', 'B1-B02', 'B2-B03');
-GO
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L1')
-    INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L1', N'Làn xe máy vào 1', 'ENTRY', 'MOTORCYCLE', N'Khu A - Xe máy');
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L2')
-    INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L2', N'Làn xe máy ra 1', 'EXIT', 'MOTORCYCLE', N'Khu A - Xe máy');
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L3')
-    INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L3', N'Làn ô tô vào 1', 'ENTRY', 'CAR', N'Khu B - Ô tô');
-
-IF NOT EXISTS (SELECT 1 FROM dbo.Lanes WHERE LaneCode = 'L4')
-    INSERT dbo.Lanes(LaneCode, LaneName, LaneType, VehicleType, AreaName) VALUES ('L4', N'Làn ô tô ra 1', 'EXIT', 'CAR', N'Khu B - Ô tô');
-GO
 
 IF NOT EXISTS (SELECT 1 FROM dbo.WorkShifts WHERE ShiftCode = 'CA1')
     INSERT dbo.WorkShifts(ShiftCode, ShiftName, StartTime, EndTime) VALUES ('CA1', N'Ca 1', '06:00', '14:00');
@@ -915,6 +711,16 @@ IF NOT EXISTS (SELECT 1 FROM dbo.ViolationRules WHERE RuleID = 'RULE_MONTHLY_EXP
     VALUES ('RULE_MONTHLY_EXPIRED_CAR', N'Thẻ tháng hết hạn khi checkout (Ô tô)', 'MONTHLY', 'CAR', 0, 50000, N'Áp dụng khi thẻ tháng ô tô đã hết hạn tại thời điểm check-out. Tính phạt 50.000đ cho mỗi giờ quá hạn kể từ mốc hết hiệu lực.');
 GO
 
+IF NOT EXISTS (SELECT 1 FROM dbo.BarcodeCards WHERE Barcode = 'KZP0000001')
+BEGIN
+    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000001', 1);
+    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000002', 1);
+    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000003', 1);
+    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000004', 1);
+    INSERT INTO dbo.BarcodeCards (Barcode, IsActive) VALUES ('KZP0000005', 1);
+END;
+GO
+
 /* ================================================================
    12. VIEWS FOR FRONTEND / REPORTING
    ================================================================ */
@@ -933,13 +739,11 @@ SELECT
     a.Status,
     sp.StaffID,
     up.UserID,
-    c.CustomerID,
     a.CreatedAt
 FROM dbo.Accounts a
 JOIN dbo.Roles r ON r.RoleID = a.RoleID
 LEFT JOIN dbo.Staff sp ON sp.AccountID = a.AccountID
-LEFT JOIN dbo.[User] up ON up.AccountID = a.AccountID
-LEFT JOIN dbo.Customers c ON c.AccountID = a.AccountID;
+LEFT JOIN dbo.[User] up ON up.AccountID = a.AccountID;
 GO
 
 CREATE OR ALTER VIEW dbo.vw_CardList
@@ -947,14 +751,13 @@ AS
 SELECT
     c.CardID,
     c.CardNo,
-    c.RFIDUID,
     cg.GroupName,
     cg.VehicleType,
     cg.TicketType,
     v.PlateNo,
-    cu.CustomerCode,
-    cu.FullName AS CustomerName,
-    cu.Address,
+    a.Username AS CustomerCode,
+    a.FullName AS CustomerName,
+    a.Address,
     f.FloorCode AS PreferredFloor,
     c.RegisteredAt,
     c.EffectiveFrom,
@@ -963,7 +766,7 @@ SELECT
     c.Note
 FROM dbo.Cards c
 JOIN dbo.CardGroups cg ON cg.CardGroupID = c.CardGroupID
-LEFT JOIN dbo.Customers cu ON cu.CustomerID = c.CustomerID
+LEFT JOIN dbo.Accounts a ON a.AccountID = c.AccountID
 LEFT JOIN dbo.Vehicles v ON v.VehicleID = c.VehicleID
 LEFT JOIN dbo.Floors f ON f.FloorID = c.PreferredFloorID;
 GO
@@ -982,16 +785,12 @@ SELECT
     pt.CheckOutAt,
     DATEDIFF(MINUTE, pt.CheckInAt, COALESCE(pt.CheckOutAt, SYSDATETIME())) AS ParkingMinutes,
     pt.FeeAmount,
-    entryLane.LaneName AS EntryLane,
-    exitLane.LaneName AS ExitLane,
     entryAccount.Username AS EntryStaff,
     exitAccount.Username AS ExitStaff,
     pt.Status
-FROM dbo.ParkingTickets pt
+FROM dbo.ParkingSessions pt
 LEFT JOIN dbo.Cards c ON c.CardID = pt.CardID
 JOIN dbo.Floors f ON f.FloorID = pt.EntryFloorID
-JOIN dbo.Lanes entryLane ON entryLane.LaneID = pt.EntryLaneID
-LEFT JOIN dbo.Lanes exitLane ON exitLane.LaneID = pt.ExitLaneID
 JOIN dbo.Staff entryStaff ON entryStaff.StaffID = pt.EntryStaffID
 JOIN dbo.Accounts entryAccount ON entryAccount.AccountID = entryStaff.AccountID
 LEFT JOIN dbo.Staff exitStaff ON exitStaff.StaffID = pt.ExitStaffID
@@ -1006,13 +805,11 @@ SELECT
     f.FloorName,
     f.VehicleType,
     f.TotalSlots,
-    SUM(CASE WHEN ps.Status = 'AVAILABLE' THEN 1 ELSE 0 END) AS AvailableSlots,
-    SUM(CASE WHEN ps.Status = 'RESERVED' THEN 1 ELSE 0 END) AS ReservedSlots,
-    SUM(CASE WHEN ps.Status = 'OCCUPIED' THEN 1 ELSE 0 END) AS OccupiedSlots,
-    SUM(CASE WHEN ps.Status = 'DISABLED' THEN 1 ELSE 0 END) AS DisabledSlots
-FROM dbo.Floors f
-LEFT JOIN dbo.ParkingSlots ps ON ps.FloorID = f.FloorID
-GROUP BY f.FloorID, f.FloorCode, f.FloorName, f.VehicleType, f.TotalSlots;
+    f.TotalSlots AS AvailableSlots,
+    0 AS ReservedSlots,
+    0 AS OccupiedSlots,
+    0 AS DisabledSlots
+FROM dbo.Floors f;
 GO
 
 /* Validate required sample profiles before reporting success. */
@@ -1047,27 +844,9 @@ IF EXISTS (
     )
 )
     THROW 50003, N'Không tạo đủ hồ sơ User mẫu.', 1;
-
--- Reset toàn bộ trạng thái bãi đỗ xe về AVAILABLE 
-UPDATE dbo.ParkingSlots SET Status = 'AVAILABLE';
 GO
 
 PRINT N'ParkingManagementDB đã được tạo/cập nhật thành công.';
-PRINT N'Tất cả ParkingSlots đã được đặt thành AVAILABLE.';
 PRINT N'Tài khoản mẫu: admin, staff01, staff02, user01, user02';
 PRINT N'Mật khẩu chung: 123456';
 GO
-
-/*
-====================================================================
- PARKING BUILDING MANAGEMENT SYSTEM (PBMS)
- Database: Microsoft SQL Server
- Generated from frontend PBMS-fe(1)
-
- LUU YY:
- - Script KHONG xoa database/bang cu.
- - CardNo duoc tu dong sinh tu CardID, khong co cot DisplayCode/CardCode.
- - Mat khau mau cua admin, staff01, staff02, user01, user02 la: 123456
- - PasswordHash da ma hoa BCrypt, dung duoc voi Spring Security.
-====================================================================
-*/
