@@ -214,7 +214,7 @@ public class StaffServiceImpl implements StaffService {
 
         // Fetch re-loaded entity to get DB computed TicketNo
         ticket = ParkingSessionRepository.findById(ticket.getSessionId()).orElse(ticket);
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "PSN" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
                 ticket.getSessionId(),
@@ -399,7 +399,7 @@ public class StaffServiceImpl implements StaffService {
             entryStaffName = entryStaff.getFullName();
         }
 
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "PSN" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
                 ticket.getSessionId(),
@@ -550,7 +550,7 @@ public class StaffServiceImpl implements StaffService {
         ticket.setViolationReason(violationReason);
         ParkingSessionRepository.save(ticket);
 
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "PSN" + String.format("%06d", ticket.getSessionId());
 
         String checkoutMsg = "Xem trước thông tin vé ra thành công";
         if (penalty.compareTo(BigDecimal.ZERO) > 0) {
