@@ -13,6 +13,7 @@ import {
 
 import PaymentModal from "./PaymentModal";
 import { staffService } from "../../../services/staffService";
+import { GEMINI_API_KEY } from "../../../config";
 
 interface TicketInfo {
   parkingSessionId: number;
@@ -156,7 +157,7 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
       setOcrSteps([...steps]);
       setActiveStepIndex(2);
 
-      const apiKey = "AQ.Ab8RN6LAK8CSIGOiHk9CRYoniXnFtzDHBaiNpD0gUvmXaxVdZA";
+      const apiKey = GEMINI_API_KEY;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
@@ -336,7 +337,7 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
     setIsOcrScanning(true);
 
     try {
-      const apiKey = "AQ.Ab8RN6LAK8CSIGOiHk9CRYoniXnFtzDHBaiNpD0gUvmXaxVdZA";
+      const apiKey = GEMINI_API_KEY;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { staffService } from "../../../services/staffService";
+import { GEMINI_API_KEY } from "../../../config";
 
 interface VehicleEntryProps {
   selectedFloorCode: string;
@@ -170,7 +171,7 @@ export default function VehicleEntry({ selectedFloorCode }: VehicleEntryProps) {
       setOcrSteps([...steps]);
       setActiveStepIndex(2);
 
-      const apiKey = "AQ.Ab8RN6LAK8CSIGOiHk9CRYoniXnFtzDHBaiNpD0gUvmXaxVdZA";
+      const apiKey = GEMINI_API_KEY;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
@@ -334,7 +335,7 @@ export default function VehicleEntry({ selectedFloorCode }: VehicleEntryProps) {
     setUploadedImagePreview(dataUrl);
 
     try {
-      const apiKey = "AQ.Ab8RN6LAK8CSIGOiHk9CRYoniXnFtzDHBaiNpD0gUvmXaxVdZA";
+      const apiKey = GEMINI_API_KEY;
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
         {
