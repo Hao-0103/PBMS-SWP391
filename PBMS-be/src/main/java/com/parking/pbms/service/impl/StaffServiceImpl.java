@@ -92,16 +92,24 @@ public class StaffServiceImpl implements StaffService {
                 Card card = cardRepository.findByCardNo(code)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy thẻ tháng: " + code));
 
+                // Ưu tiên 1: Kiểm tra thời hạn trước, KHÔNG tin vào cột status trong DB
+                // Dùng !isAfter để bắt cả expireAt < today VÀ expireAt == today
+                if (card.getExpireAt() != null && !card.getExpireAt().isAfter(LocalDate.now())) {
+                    // Đồng bộ trạng thái thực tế vào DB
+                    if ("ACTIVE".equalsIgnoreCase(card.getStatus())) {
+                        card.setStatus("EXPIRED");
+                        cardRepository.save(card);
+                    }
+                    throw new RuntimeException("Thẻ tháng đã hết hạn từ ngày " + card.getExpireAt() + "! Vui lòng gia hạn để vào bãi.");
+                }
+
+                // Ưu tiên 2: Kiểm tra trạng thái hoạt động
                 if (!card.getStatus().equalsIgnoreCase("ACTIVE")) {
                     throw new RuntimeException("Thẻ tháng " + code + " không hoạt động (Trạng thái: " + card.getStatus() + ")");
                 }
 
                 if (card.getEffectiveFrom() != null && card.getEffectiveFrom().isAfter(LocalDate.now())) {
                     throw new RuntimeException("Thẻ tháng chưa đến ngày bắt đầu sử dụng (Ngày bắt đầu: " + card.getEffectiveFrom() + ")");
-                }
-
-                if (card.getExpireAt() != null && card.getExpireAt().isBefore(LocalDate.now())) {
-                    throw new RuntimeException("Thẻ tháng đã hết hạn vào ngày " + card.getExpireAt());
                 }
 
                 Vehicle vehicle = vehicleRepository.findById(card.getVehicleId())
