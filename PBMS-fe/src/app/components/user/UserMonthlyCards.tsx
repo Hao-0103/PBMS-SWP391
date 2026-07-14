@@ -153,6 +153,15 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
   });
   const [duration, setDuration] = useState(1);
   const [err, setErr] = useState("");
+
+  // ── My Vehicles: load once on mount ──────────────────────────────
+  const [myVehicles, setMyVehicles] = useState<import("../../../services/cardService").VehicleDto[]>([]);
+  useEffect(() => {
+    cardService.getMyVehicles()
+      .then(setMyVehicles)
+      .catch(() => setMyVehicles([]));
+  }, []);
+
   const F = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   const selectedGroup = cardGroups.find(g => g.groupName === form.nhomThe);
@@ -161,9 +170,16 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
   const today = getTodayDate();
   const ngayHetHan = isDayCard ? addDays(form.ngayDangKy, duration) : addMonths(form.ngayDangKy, duration);
 
+  // ── Filter biển số theo loại xe của nhóm thẻ ─────────────────────
+  const requiredVehicleType = selectedGroup?.vehicleType ?? "MOTORCYCLE";
+  const filteredVehicles = myVehicles.filter(
+    v => v.vehicleType.toUpperCase() === requiredVehicleType.toUpperCase()
+  );
+  const noMatchingVehicle = filteredVehicles.length === 0;
+
   const handleNext = () => {
     if (!form.bienSo.trim()) {
-      setErr("Vui lòng nhập biển số xe (*)");
+      setErr("Vui lòng nhập hoặc chọn biển số xe (*)");
       return;
     }
     if (!form.tangGuiXe) {
@@ -200,22 +216,12 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
 
         <div className="p-5 space-y-3">
               {err && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</div>}
-              <div>
-                <label className="block text-xs text-gray-600 mb-1">
-                  Biển số xe <span className="text-red-500">*</span>
-                </label>
-                <input
-                  className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm uppercase focus:outline-none focus:border-blue-400"
-                  placeholder="VD: 29X1-123.45"
-                  value={form.bienSo}
-                  onChange={(e) => F("bienSo", e.target.value.toUpperCase())}
-                />
-              </div>
+
+              {/* Nhóm thẻ — chọn trước để xác định loại xe */}
               <div>
                 <label className="block text-xs text-gray-600 mb-1">
                   Nhóm thẻ
                 </label>
-
                 <select
                   className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400"
                   value={form.nhomThe}
@@ -223,13 +229,12 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
                     const nhomTheMoi = e.target.value;
                     const selected = cardGroups.find(g => g.groupName === nhomTheMoi);
                     const isOtoMoi = selected ? selected.vehicleType === "CAR" : false;
-
                     setForm((previous) => ({
                       ...previous,
                       nhomThe: nhomTheMoi,
+                      bienSo: "",
                       tangGuiXe: isOtoMoi ? previous.tangGuiXe : "",
                     }));
-
                     setErr("");
                   }}
                 >
@@ -239,12 +244,46 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
                     </option>
                   ))}
                 </select>
-
                 <div className="mt-1.5 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
                   Loại xe tự động:{" "}
                   <span className="font-semibold">{loaiXe}</span>
                 </div>
               </div>
+
+              {/* Biển số xe — dropdown từ phương tiện của tôi + nhập tay */}
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">
+                  Biển số xe <span className="text-red-500">*</span>
+                </label>
+                {noMatchingVehicle ? (
+                  <>
+                    <input
+                      className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm uppercase focus:outline-none focus:border-blue-400"
+                      placeholder="VD: 29X1-123.45"
+                      value={form.bienSo}
+                      onChange={(e) => F("bienSo", e.target.value.toUpperCase())}
+                    />
+                    <p className="mt-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                      Bạn chưa đăng ký {loaiXe.toLowerCase()} nào. Hãy vào mục{" "}
+                      <span className="font-semibold">"Phương tiện của tôi"</span> để thêm xe trước, hoặc nhập biển số thủ công bên trên.
+                    </p>
+                  </>
+                ) : (
+                  <select
+                    className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400"
+                    value={form.bienSo}
+                    onChange={(e) => F("bienSo", e.target.value)}
+                  >
+                    <option value="">-- Chọn biển số xe --</option>
+                    {filteredVehicles.map(v => (
+                      <option key={v.id} value={v.plateNo}>
+                        {v.plateNo}{v.brand ? ` (${v.brand}${v.model ? " " + v.model : ""})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               <div>
                 <label className="block text-xs text-gray-600 mb-1">
                   Ngày bắt đầu sử dụng <span className="text-red-500">*</span>
@@ -274,7 +313,6 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
                 <label className="block text-xs text-gray-600 mb-1">
                   {isDayCard ? "Số ngày đăng ký" : "Số tháng đăng ký"}
                 </label>
-
                 <select
                   className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm bg-white focus:outline-none focus:border-blue-400"
                   value={duration}
@@ -499,7 +537,7 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, paymentType = 'registr
             {isPaid ? '✅ Thanh toán thành công!' : 'Thanh toán qua VNPay'}
           </span>
           {!isPaid && (
-            <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={handleCancel} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
           )}
         </div>
 
@@ -551,20 +589,6 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, paymentType = 'registr
                 className="px-4 py-1.5 border border-red-300 text-red-600 text-sm rounded hover:bg-red-50 transition-colors"
               >
                 Hủy thanh toán
-              </button>
-              <button
-                onClick={async () => {
-                  if (!orderCode) return;
-                  try {
-                    await cardService.mockPaymentSuccess(orderCode);
-                    setIsPaid(true);
-                  } catch (err: any) {
-                    alert(err.message || "Lỗi khi giả lập thanh toán.");
-                  }
-                }}
-                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded transition-colors"
-              >
-                Giả lập Thanh toán (Test)
               </button>
             </>
           )}

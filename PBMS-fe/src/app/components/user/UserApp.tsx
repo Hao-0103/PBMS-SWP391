@@ -2,6 +2,7 @@ import { useState } from "react";
 import UserLayout, { UserScreen } from "./UserLayout";
 import UserDashboard from "./UserDashboard";
 import UserMonthlyCards from "./UserMonthlyCards";
+import UserMyVehicles from "./UserMyVehicles";
 import UserSupport from "./UserSupport";
 import UserRegulations from "./UserRegulations";
 
@@ -17,6 +18,9 @@ function renderScreen(screen: UserScreen, userName: string) {
 
     case "monthly-cards":
       return <UserMonthlyCards />;
+
+    case "my-vehicles":
+      return <UserMyVehicles />;
 
     case "regulations":
       return <UserRegulations />;

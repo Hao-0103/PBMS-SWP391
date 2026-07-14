@@ -14,11 +14,13 @@ import {
   LifeBuoy,
   ShoppingCart,
   BookOpen,
+  Car,
 } from "lucide-react";
 
 export type UserScreen =
   | "dashboard"
   | "monthly-cards"
+  | "my-vehicles"
   | "regulations"
   | "support";
 
@@ -46,6 +48,11 @@ const navItems: {
     icon: CreditCard,
   },
   {
+    screen: "my-vehicles",
+    label: "Phương tiện của tôi",
+    icon: Car,
+  },
+  {
     screen: "regulations",
     label: "Quy định",
     icon: BookOpen,
@@ -60,6 +67,7 @@ const navItems: {
 const breadcrumbMap: Record<UserScreen, string> = {
   dashboard: "Hồ sơ của tôi",
   "monthly-cards": "Thẻ của tôi",
+  "my-vehicles": "Phương tiện của tôi",
   regulations: "Quy định",
   support: "Hỗ trợ",
 };
