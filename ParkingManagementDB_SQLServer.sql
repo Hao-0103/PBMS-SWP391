@@ -411,7 +411,7 @@ BEGIN
     CREATE TABLE dbo.Payments (
         PaymentID         BIGINT IDENTITY(1,1) PRIMARY KEY,
         PaymentNo         AS ('PMT' + RIGHT('000000' + CONVERT(VARCHAR(20), PaymentID), 6)) PERSISTED,
-        PayerAccountID    INT NOT NULL,
+        PayerAccountID    INT NULL,
         TicketID          BIGINT NULL,
         CardID            INT NULL,
         Amount            DECIMAL(18,2) NOT NULL,

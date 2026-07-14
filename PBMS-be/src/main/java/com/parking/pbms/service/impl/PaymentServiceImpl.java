@@ -45,13 +45,13 @@ public class PaymentServiceImpl implements PaymentService {
         BigDecimal penalty = ticket.getPenaltyAmount() != null ? ticket.getPenaltyAmount() : BigDecimal.ZERO;
         BigDecimal totalAmount = fee.add(penalty);
 
-        // Enforce VNPay minimum: 10,000 VND (amounts below this are rejected by VNPay)
-        BigDecimal vnpayMinimum = BigDecimal.valueOf(10_000);
-        if (totalAmount.compareTo(vnpayMinimum) < 0) {
-            totalAmount = vnpayMinimum;
+        // CHỈ CHẶN KHI SỐ TIỀN BỊ ÂM
+        if (totalAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new RuntimeException("Số tiền thanh toán không được nhỏ hơn 0 VND");
         }
 
-        String description = "ThanhToanVeXe_" + ticket.getSessionId();
+        // Generate a new reference code with timestamp to avoid unique constraint violation if retry
+        String newReferenceCode = "ThanhToanVeXe_" + ticket.getSessionId() + "_" + System.currentTimeMillis();
 
         // Resolve payerAccountId from the card owner (null for guest/SINGLE sessions)
         Integer payerAccountId = null;
@@ -61,44 +61,75 @@ public class PaymentServiceImpl implements PaymentService {
                     .orElse(null);
         }
 
-        // 1. Lưu trạng thái PENDING vào Database trước
-        Payment payment = Payment.builder()
-                .ticketId(ticket.getSessionId())
-                .payerAccountId(payerAccountId)
-                .amount(totalAmount)
-                .paymentMethod("VIETQR")
-                .paymentType("PARKING_FEE")
-                .referenceCode(description)
-                .status("PENDING")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
-        payment = paymentRepository.save(payment);
+        // 1. Check for existing PENDING payment to enforce idempotency
+        Optional<Payment> existingPendingPaymentOpt = paymentRepository.findFirstByTicketIdAndStatus(ticket.getSessionId(), "PENDING");
+        Payment payment;
+
+        if (existingPendingPaymentOpt.isPresent()) {
+            payment = existingPendingPaymentOpt.get();
+            payment.setAmount(totalAmount);
+            payment.setPaymentMethod("VIETQR");
+            payment.setReferenceCode(newReferenceCode);
+            payment.setUpdatedAt(LocalDateTime.now());
+            payment.setPayerAccountId(payerAccountId);
+            payment = paymentRepository.save(payment);
+            log.info("Updated existing PENDING payment for Ticket {}: new RefCode {}", ticket.getSessionId(), newReferenceCode);
+        } else {
+            payment = Payment.builder()
+                    .ticketId(ticket.getSessionId())
+                    .payerAccountId(payerAccountId)
+                    .amount(totalAmount)
+                    .paymentMethod("VIETQR")
+                    .paymentType("PARKING_FEE")
+                    .referenceCode(newReferenceCode)
+                    .status("PENDING")
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            payment = paymentRepository.save(payment);
+            log.info("Created new PENDING payment for Ticket {}: RefCode {}", ticket.getSessionId(), newReferenceCode);
+        }
 
         long orderCode = payment.getPaymentId().longValue();
 
         try {
-            // 2. Tạo URL VNPay
             long amount = totalAmount.longValue();
-            String ip = (request.getIpAddr() != null && !request.getIpAddr().isBlank())
-                    ? request.getIpAddr() : "127.0.0.1";
-            String paymentUrl = vnPayConfig.createPaymentUrl(
-                    orderCode,
-                    amount,
-                    "ThanhToanVeXe_" + ticket.getSessionId(),
-                    ip
-            );
+            String paymentUrl = null;
 
-            // 5. Trả kết quả về cho Frontend
+            // NẾU SỐ TIỀN BẰNG 0 VND: Duyệt hoàn tất giao dịch luôn tại hệ thống, không qua VNPay
+            if (amount == 0) {
+                payment.setStatus("PAID");
+                payment.setPaidAt(LocalDateTime.now());
+                payment.setPaymentMethod("SYSTEM");
+                paymentRepository.save(payment);
+
+                // Cập nhật luôn trạng thái của Vé xe (Ticket) thành PAID để mở barrier
+                ticket.setStatus("PAID");
+                ticketRepository.save(ticket);
+
+                log.info("Ticket {} mien phi (0 VND). Da tu dong cap nhat trang thai PAID.", ticket.getSessionId());
+            }
+            // NẾU SỐ TIỀN > 0 VND: Tiến hành tạo link thanh toán VNPay bình thường
+            else {
+                String ip = (request.getIpAddr() != null && !request.getIpAddr().isBlank())
+                        ? request.getIpAddr() : "127.0.0.1";
+                paymentUrl = vnPayConfig.createPaymentUrl(
+                        orderCode,
+                        amount,
+                        newReferenceCode,
+                        ip
+                );
+            }
+
+            // Trả kết quả về cho Frontend (Nếu là 0 VND thì checkoutUrl sẽ là null)
             return PaymentResponse.builder()
                     .paymentId(payment.getPaymentId())
                     .ticketId(payment.getTicketId())
                     .amount(payment.getAmount())
                     .description(payment.getReferenceCode())
                     .status(payment.getStatus())
-                    .checkoutUrl(paymentUrl) // 💡 Lấy link xịn từ VNPay
+                    .checkoutUrl(paymentUrl)
                     .build();
-
         } catch (Exception e) {
             log.error("Lỗi khi tạo payment link trên VNPay", e);
             throw new RuntimeException("Không thể tạo giao dịch VNPay");
@@ -123,20 +154,38 @@ public class PaymentServiceImpl implements PaymentService {
                     .orElse(null);
         }
 
-        // Tao Payment record voi trang thai PAID ngay (khong qua cong thanh toan)
-        Payment payment = Payment.builder()
-                .ticketId(ticket.getSessionId())
-                .payerAccountId(payerAccountId)
-                .amount(totalAmount)
-                .paymentMethod("CASH")
-                .paymentType("PARKING_FEE")
-                .referenceCode("CASH_" + ticket.getSessionId() + "_" + System.currentTimeMillis())
-                .status("PAID")
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .paidAt(LocalDateTime.now())
-                .build();
-        payment = paymentRepository.save(payment);
+        String newReferenceCode = "CASH_" + ticket.getSessionId() + "_" + System.currentTimeMillis();
+
+        Optional<Payment> existingPendingPaymentOpt = paymentRepository.findFirstByTicketIdAndStatus(ticket.getSessionId(), "PENDING");
+        Payment payment;
+
+        if (existingPendingPaymentOpt.isPresent()) {
+            payment = existingPendingPaymentOpt.get();
+            payment.setAmount(totalAmount);
+            payment.setPaymentMethod("CASH");
+            payment.setReferenceCode(newReferenceCode);
+            payment.setStatus("PAID");
+            payment.setPaidAt(LocalDateTime.now());
+            payment.setUpdatedAt(LocalDateTime.now());
+            payment.setPayerAccountId(payerAccountId);
+            payment = paymentRepository.save(payment);
+            log.info("[CASH] Updated existing PENDING payment to PAID for Ticket {}. RefCode: {}", ticketId, newReferenceCode);
+        } else {
+            payment = Payment.builder()
+                    .ticketId(ticket.getSessionId())
+                    .payerAccountId(payerAccountId)
+                    .amount(totalAmount)
+                    .paymentMethod("CASH")
+                    .paymentType("PARKING_FEE")
+                    .referenceCode(newReferenceCode)
+                    .status("PAID")
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .paidAt(LocalDateTime.now())
+                    .build();
+            payment = paymentRepository.save(payment);
+            log.info("[CASH] Created new PAID payment for Ticket {}. RefCode: {}", ticketId, newReferenceCode);
+        }
 
         // Cap nhat trang thai ticket thanh PAID
         ticket.setStatus("PAID");
