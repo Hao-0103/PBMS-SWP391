@@ -222,11 +222,11 @@ public class StaffServiceImpl implements StaffService {
 
         // Fetch re-loaded entity to get DB computed TicketNo
         ticket = ParkingSessionRepository.findById(ticket.getSessionId()).orElse(ticket);
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String parkingSessionNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
                 ticket.getSessionId(),
-                ticketNo,
+                parkingSessionNo,
                 ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),
@@ -254,7 +254,7 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        String input = request.ticketNoOrQrToken().trim().toUpperCase();
+        String input = request.parkingSessionNoOrQrToken().trim().toUpperCase();
         Optional<ParkingSession> ticketOpt = Optional.empty();
 
         // 1. Try by ticket number
@@ -407,11 +407,11 @@ public class StaffServiceImpl implements StaffService {
             entryStaffName = entryStaff.getFullName();
         }
 
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String parkingSessionNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         return new StaffTicketResponse(
                 ticket.getSessionId(),
-                ticketNo,
+                parkingSessionNo,
                 ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),
@@ -432,14 +432,14 @@ public class StaffServiceImpl implements StaffService {
 
     @Override
     @Transactional
-    public StaffTicketResponse previewCheckOut(String ticketNoOrQrToken, String username) {
+    public StaffTicketResponse previewCheckOut(String parkingSessionNoOrQrToken, String username) {
         // Find staff
         Account account = accountRepository.findByUsernameIgnoreCase(username)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản: " + username));
         Staff staff = staffRepository.findByAccountId(account.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy nhân viên tương ứng với tài khoản: " + username));
 
-        String input = ticketNoOrQrToken.trim().toUpperCase();
+        String input = parkingSessionNoOrQrToken.trim().toUpperCase();
         Optional<ParkingSession> ticketOpt = Optional.empty();
 
         ticketOpt = ParkingSessionRepository.findBySessionNo(input);
@@ -556,9 +556,9 @@ public class StaffServiceImpl implements StaffService {
         ticket.setFeeAmount(fee);
         ticket.setPenaltyAmount(penalty);
         ticket.setViolationReason(violationReason);
-        ParkingSessionRepository.save(ticket);
+        ticket = ParkingSessionRepository.save(ticket);
 
-        String ticketNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
+        String parkingSessionNo = ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId());
 
         String checkoutMsg = "Xem trước thông tin vé ra thành công";
         if (penalty.compareTo(BigDecimal.ZERO) > 0) {
@@ -567,7 +567,7 @@ public class StaffServiceImpl implements StaffService {
 
         return new StaffTicketResponse(
                 ticket.getSessionId(),
-                ticketNo,
+                parkingSessionNo,
                 ticket.getBarcode(),
                 ticket.getTicketType(),
                 ticket.getVehicleType(),

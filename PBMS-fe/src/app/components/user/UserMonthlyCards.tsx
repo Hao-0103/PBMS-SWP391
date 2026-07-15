@@ -257,15 +257,14 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
                 </label>
                 {noMatchingVehicle ? (
                   <>
-                    <input
-                      className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm uppercase focus:outline-none focus:border-blue-400"
-                      placeholder="VD: 29X1-123.45"
-                      value={form.bienSo}
-                      onChange={(e) => F("bienSo", e.target.value.toUpperCase())}
-                    />
-                    <p className="mt-1.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
-                      Bạn chưa đăng ký {loaiXe.toLowerCase()} nào. Hãy vào mục{" "}
-                      <span className="font-semibold">"Phương tiện của tôi"</span> để thêm xe trước, hoặc nhập biển số thủ công bên trên.
+                    <select
+                      disabled
+                      className="w-full h-[36px] border border-gray-300 rounded px-3 text-sm bg-gray-100 text-gray-500 focus:outline-none cursor-not-allowed"
+                    >
+                      <option value="">-- Không có phương tiện phù hợp --</option>
+                    </select>
+                    <p className="mt-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1.5">
+                      Bạn chưa đăng ký phương tiện phù hợp cho nhóm thẻ này. Vui lòng vào mục 'Phương tiện của tôi' để thêm xe trước!
                     </p>
                   </>
                 ) : (
@@ -338,7 +337,7 @@ function AddCardModal({ cardGroups, onSave, onClose }: {
               </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-3 border-t border-gray-200">
-              <button onClick={handleNext} className="flex items-center gap-1.5 h-[34px] px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors">
+              <button onClick={handleNext} disabled={noMatchingVehicle} className="flex items-center gap-1.5 h-[34px] px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors">
                 <QrCode className="w-3.5 h-3.5" />Tiếp theo: Thanh toán
               </button>
               <button onClick={onClose} className="h-[34px] px-3 border border-gray-300 text-gray-600 hover:bg-gray-50 text-sm rounded transition-colors">Hủy</button>

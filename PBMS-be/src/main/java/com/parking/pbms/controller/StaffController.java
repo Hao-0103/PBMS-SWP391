@@ -71,11 +71,11 @@ public class StaffController {
 
     @GetMapping("/check-out-preview")
     public ResponseEntity<ApiResponse<StaffTicketResponse>> previewCheckOut(
-            @RequestParam String ticketNoOrQrToken,
+            @RequestParam String parkingSessionNoOrQrToken,
             Principal principal
     ) {
         String username = principal.getName();
-        StaffTicketResponse response = staffService.previewCheckOut(ticketNoOrQrToken, username);
+        StaffTicketResponse response = staffService.previewCheckOut(parkingSessionNoOrQrToken, username);
         return ResponseEntity.ok(
                 ApiResponse.success(200, "Xem trước thông tin vé ra", response)
         );
