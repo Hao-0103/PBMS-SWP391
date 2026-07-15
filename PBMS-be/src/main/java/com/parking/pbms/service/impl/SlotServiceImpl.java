@@ -3,6 +3,10 @@ package com.parking.pbms.service.impl;
 import com.parking.pbms.dto.FloorStatDto;
 import com.parking.pbms.dto.SlotStatsResponse;
 import com.parking.pbms.model.Floor;
+<<<<<<< HEAD 
+import com.parking.pbms.repository.CardRepository;
+=======
+>>>>>>> ledat
 import com.parking.pbms.repository.FloorRepository;
 import com.parking.pbms.repository.ParkingSessionRepository;
 import com.parking.pbms.service.SlotService;
@@ -21,6 +25,10 @@ public class SlotServiceImpl implements SlotService {
 
     private final FloorRepository floorRepository;
     private final ParkingSessionRepository parkingSessionRepository;
+<<<<<<< HEAD
+    private final CardRepository cardRepository;
+=======
+>>>>>>> ledat
 
     @Override
     public SlotStatsResponse getSlotStatistics(String dateStr) {
@@ -54,6 +62,18 @@ public class SlotServiceImpl implements SlotService {
             int floorTotalCarSlots = floor.getTotalCarSlots() != null ? floor.getTotalCarSlots() : 0;
             int floorTotalMotorcycleSlots = floor.getTotalMotorcycleSlots() != null ? floor.getTotalMotorcycleSlots() : 0;
 
+<<<<<<< HEAD
+            int floorMonthlyCar = (int) cardRepository.countActiveMonthlyAndDayCards(floor.getFloorId(), "CAR");
+            int floorMonthlyMotorcycle = (int) cardRepository.countActiveMonthlyAndDayCards(floor.getFloorId(), "MOTORCYCLE");
+
+            int singleCarInside = (int) parkingSessionRepository.countActiveSingleSessions(
+                    floor.getFloorId(), "CAR", startOfDay, endOfDay);
+            int singleMotorcycleInside = (int) parkingSessionRepository.countActiveSingleSessions(
+                    floor.getFloorId(), "MOTORCYCLE", startOfDay, endOfDay);
+
+            int occupiedCar = floorMonthlyCar + singleCarInside;
+            int occupiedMotorcycle = floorMonthlyMotorcycle + singleMotorcycleInside;
+=======
             int occupiedCar = (int) parkingSessionRepository.countActiveSessions(
                     floor.getFloorId(), "CAR", startOfDay, endOfDay);
             int occupiedMotorcycle = (int) parkingSessionRepository.countActiveSessions(
@@ -63,6 +83,7 @@ public class SlotServiceImpl implements SlotService {
                     floor.getFloorId(), "CAR", startOfDay, endOfDay);
             int floorMonthlyMotorcycle = (int) parkingSessionRepository.countActiveMonthlySessions(
                     floor.getFloorId(), "MOTORCYCLE", startOfDay, endOfDay);
+>>>>>>> ledat
 
             int availableCar = Math.max(0, floorTotalCarSlots - occupiedCar);
             int availableMotorcycle = Math.max(0, floorTotalMotorcycleSlots - occupiedMotorcycle);
