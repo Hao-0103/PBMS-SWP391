@@ -33,8 +33,8 @@ export interface StaffCheckOutRequest {
 }
 
 export interface StaffTicketResponse {
-  ticketId: number;
-  ticketNo: string;
+  parkingSessionId: number;
+  parkingSessionNo: string;
   qrToken: string;
   ticketType: string;
   vehicleType: string;

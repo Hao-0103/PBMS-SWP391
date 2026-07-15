@@ -13,9 +13,10 @@ import {
 
 import PaymentModal from "./PaymentModal";
 import { staffService } from "../../../services/staffService";
+import { GEMINI_API_KEY } from "../../../config";
 
 interface TicketInfo {
-  ticketId: number;
+  parkingSessionId: number;
   maVe: string;
   bienSo: string;
   loaiXe: string;
@@ -266,8 +267,8 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
       const resp = await staffService.previewCheckOut(code.trim());
 
       const ticketInfo: TicketInfo = {
-        ticketId: resp.ticketId,
-        maVe: resp.ticketNo,
+        parkingSessionId: resp.parkingSessionId,
+        maVe: resp.parkingSessionNo,
         bienSo: resp.plateNoSnapshot,
         loaiXe: resp.vehicleType === "CAR" ? "Ô tô" : "Xe máy",
         vehicleType: resp.vehicleType,
@@ -1004,8 +1005,8 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
             setIsPaymentModalOpen(false);
             executeFinalCheckOut();
           }}
-          ticketId={ticket.ticketId}
-          ticketNo={ticket.maVe}
+          parkingSessionId={ticket.parkingSessionId}
+          parkingSessionNo={ticket.maVe}
           plateNo={ticket.bienSo}
           vehicleType={ticket.vehicleType}
           checkInAt={ticket.rawCheckInAt}

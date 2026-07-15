@@ -92,18 +92,18 @@ public class StaffController {
             Principal principal
     ) {
         try {
-            Long ticketId = Long.parseLong(body.get("ticketId").toString());
+            Long parkingSessionId = Long.parseLong(body.get("parkingSessionId").toString());
             String method = body.getOrDefault("paymentMethod", "VNPAY").toString().toUpperCase();
             String ipAddr = body.getOrDefault("ipAddr", "127.0.0.1").toString();
 
             if ("CASH".equals(method)) {
                 // Thanh toan tien mat: cap nhat ngay, khong qua VNPay
-                PaymentResponse resp = paymentService.createCashPayment(ticketId);
+                PaymentResponse resp = paymentService.createCashPayment(parkingSessionId);
                 return ResponseEntity.ok(ApiResponse.success(200, "Thanh toan tien mat thanh cong", resp));
             } else {
                 // Thanh toan VNPay: tao link
                 PaymentRequest req = new PaymentRequest();
-                req.setTicketId(ticketId);
+                req.setParkingSessionId(parkingSessionId);
                 req.setIpAddr(ipAddr);
                 PaymentResponse resp = paymentService.createPayment(req);
                 return ResponseEntity.ok(ApiResponse.success(200, "Tao link VNPay thanh cong", resp));
@@ -115,12 +115,12 @@ public class StaffController {
         }
     }
 
-    @GetMapping("/payment-status/{ticketId}")
-    public ResponseEntity<ApiResponse<String>> getPaymentStatus(@PathVariable Long ticketId) {
+    @GetMapping("/payment-status/{parkingSessionId}")
+    public ResponseEntity<ApiResponse<String>> getPaymentStatus(@PathVariable Long parkingSessionId) {
         try {
-            // Tim payment moi nhat theo ticketId
+            // Tim payment moi nhat theo parkingSessionId
             com.parking.pbms.model.Payment payment = paymentRepository
-                .findFirstByTicketIdOrderByCreatedAtDesc(ticketId)
+                .findFirstByParkingSessionIdOrderByCreatedAtDesc(parkingSessionId)
                 .orElse(null);
             String status = (payment != null) ? payment.getStatus() : "NOT_FOUND";
             return ResponseEntity.ok(ApiResponse.success(200, "OK", status));

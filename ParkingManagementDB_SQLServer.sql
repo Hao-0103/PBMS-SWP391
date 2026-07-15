@@ -371,7 +371,7 @@ BEGIN
         RequestType             VARCHAR(50) NOT NULL,
         SenderAccountID         INT NOT NULL,
         AssignedStaffID         INT NULL,
-        TicketID                BIGINT NULL,
+        ParkingSessionID        BIGINT NULL,
         CardID                  INT NULL,
         ReservationID           BIGINT NULL,
         VehicleID               INT NULL,
@@ -774,8 +774,8 @@ GO
 CREATE OR ALTER VIEW dbo.vw_VehicleEntryExitReport
 AS
 SELECT
-    pt.TicketID,
-    pt.TicketNo,
+    pt.ParkingSessionID,
+    pt.ParkingSessionNo,
     c.CardNo,
     pt.PlateNoSnapshot AS PlateNo,
     pt.VehicleType,

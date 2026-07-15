@@ -116,7 +116,7 @@ public class PaymentServiceImpl implements PaymentService {
             // Trả kết quả về cho Frontend (Nếu là 0 VND thì checkoutUrl sẽ là null)
             return PaymentResponse.builder()
                     .paymentId(payment.getPaymentId())
-                    .ticketId(payment.getTicketId())
+                    .parkingSessionId(payment.getParkingSessionId())
                     .amount(payment.getAmount())
                     .description(payment.getReferenceCode())
                     .status(payment.getStatus())
@@ -165,11 +165,11 @@ public class PaymentServiceImpl implements PaymentService {
         ticket.setStatus("PAID");
         ticketRepository.save(ticket);
 
-        log.info("[CASH] Ticket {} da duoc thanh toan tien mat. Tong: {}", ticketId, totalAmount);
+        log.info("[CASH] ParkingSession {} da duoc thanh toan tien mat. Tong: {}", parkingSessionId, totalAmount);
 
         return PaymentResponse.builder()
                 .paymentId(payment.getPaymentId())
-                .ticketId(payment.getTicketId())
+                .parkingSessionId(payment.getParkingSessionId())
                 .amount(payment.getAmount())
                 .description(payment.getReferenceCode())
                 .status(payment.getStatus())
@@ -177,11 +177,11 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     @Override
-    public PaymentResponse checkStatus(Long ticketId) {
-        return paymentRepository.findById(ticketId)
+    public PaymentResponse checkStatus(Long parkingSessionId) {
+        return paymentRepository.findFirstByParkingSessionIdOrderByCreatedAtDesc(parkingSessionId)
                 .map(payment -> PaymentResponse.builder()
                         .paymentId(payment.getPaymentId())
-                        .ticketId(payment.getTicketId())
+                        .parkingSessionId(payment.getParkingSessionId())
                         .amount(payment.getAmount())
                         .description(payment.getReferenceCode())
                         .status(payment.getStatus())
@@ -309,7 +309,7 @@ public class PaymentServiceImpl implements PaymentService {
 
         return PaymentResponse.builder()
                 .paymentId(payment.getPaymentId())
-                .ticketId(payment.getTicketId())
+                .parkingSessionId(payment.getParkingSessionId())
                 .amount(payment.getAmount())
                 .description(payment.getReferenceCode())
                 .status(payment.getStatus())

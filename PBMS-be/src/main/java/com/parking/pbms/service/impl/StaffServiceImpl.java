@@ -92,16 +92,24 @@ public class StaffServiceImpl implements StaffService {
                 Card card = cardRepository.findByCardNo(code)
                         .orElseThrow(() -> new RuntimeException("Không tìm thấy thẻ tháng: " + code));
 
+                // Ưu tiên 1: Kiểm tra thời hạn trước, KHÔNG tin vào cột status trong DB
+                // Dùng !isAfter để bắt cả expireAt < today VÀ expireAt == today
+                if (card.getExpireAt() != null && !card.getExpireAt().isAfter(LocalDate.now())) {
+                    // Đồng bộ trạng thái thực tế vào DB
+                    if ("ACTIVE".equalsIgnoreCase(card.getStatus())) {
+                        card.setStatus("EXPIRED");
+                        cardRepository.save(card);
+                    }
+                    throw new RuntimeException("Thẻ tháng đã hết hạn từ ngày " + card.getExpireAt() + "! Vui lòng gia hạn để vào bãi.");
+                }
+
+                // Ưu tiên 2: Kiểm tra trạng thái hoạt động
                 if (!card.getStatus().equalsIgnoreCase("ACTIVE")) {
                     throw new RuntimeException("Thẻ tháng " + code + " không hoạt động (Trạng thái: " + card.getStatus() + ")");
                 }
 
                 if (card.getEffectiveFrom() != null && card.getEffectiveFrom().isAfter(LocalDate.now())) {
                     throw new RuntimeException("Thẻ tháng chưa đến ngày bắt đầu sử dụng (Ngày bắt đầu: " + card.getEffectiveFrom() + ")");
-                }
-
-                if (card.getExpireAt() != null && card.getExpireAt().isBefore(LocalDate.now())) {
-                    throw new RuntimeException("Thẻ tháng đã hết hạn vào ngày " + card.getExpireAt());
                 }
 
                 Vehicle vehicle = vehicleRepository.findById(card.getVehicleId())
@@ -329,7 +337,7 @@ public class StaffServiceImpl implements StaffService {
             if (ruleOpt.isPresent() && ruleOpt.get().getIsActive()) {
                 ViolationRule rule = ruleOpt.get();
                 long diffMs = java.time.Duration.between(checkIn, checkOutTime).toMillis();
-                long diffHours = (long) Math.ceil((double) diffMs / (1000 * 60 * 60));
+                long diffHours = (long) Math.floor((double) diffMs / (1000 * 60 * 60));
                 if (diffHours > rule.getMaxDurationHours()) {
                     long overdueHours = diffHours - rule.getMaxDurationHours();
                     penalty = rule.getPenaltyPerHour().multiply(BigDecimal.valueOf(overdueHours));
@@ -346,7 +354,7 @@ public class StaffServiceImpl implements StaffService {
                         LocalDateTime expireDateTime = card.getExpireAt().atTime(23, 59, 59);
                         if (checkOutTime.isAfter(expireDateTime)) {
                             long overMs = java.time.Duration.between(expireDateTime, checkOutTime).toMillis();
-                            long overdueHours = (long) Math.ceil((double) overMs / (1000 * 60 * 60));
+                            long overdueHours = (long) Math.floor((double) overMs / (1000 * 60 * 60));
                             if (overdueHours > 0) {
                                 Optional<ViolationRule> ruleOpt = violationRuleRepository.findByTicketTypeAndVehicleType(ticketType, vehicleType);
                                 if (ruleOpt.isPresent() && ruleOpt.get().getIsActive()) {
@@ -498,7 +506,7 @@ public class StaffServiceImpl implements StaffService {
             if (ruleOpt.isPresent() && ruleOpt.get().getIsActive()) {
                 ViolationRule rule = ruleOpt.get();
                 long diffMs = java.time.Duration.between(checkIn, checkOutTime).toMillis();
-                long diffHours = (long) Math.ceil((double) diffMs / (1000 * 60 * 60));
+                long diffHours = (long) Math.floor((double) diffMs / (1000 * 60 * 60));
                 if (diffHours > rule.getMaxDurationHours()) {
                     long overdueHours = diffHours - rule.getMaxDurationHours();
                     penalty = rule.getPenaltyPerHour().multiply(BigDecimal.valueOf(overdueHours));
@@ -515,7 +523,7 @@ public class StaffServiceImpl implements StaffService {
                         LocalDateTime expireDateTime = card.getExpireAt().atTime(23, 59, 59);
                         if (checkOutTime.isAfter(expireDateTime)) {
                             long overMs = java.time.Duration.between(expireDateTime, checkOutTime).toMillis();
-                            long overdueHours = (long) Math.ceil((double) overMs / (1000 * 60 * 60));
+                            long overdueHours = (long) Math.floor((double) overMs / (1000 * 60 * 60));
                             if (overdueHours > 0) {
                                 Optional<ViolationRule> ruleOpt = violationRuleRepository.findByTicketTypeAndVehicleType(ticketType, vehicleType);
                                 if (ruleOpt.isPresent() && ruleOpt.get().getIsActive()) {
