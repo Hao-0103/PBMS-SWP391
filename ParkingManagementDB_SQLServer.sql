@@ -787,7 +787,9 @@ SELECT
     pt.FeeAmount,
     entryAccount.Username AS EntryStaff,
     exitAccount.Username AS ExitStaff,
-    pt.Status
+    pt.Status,
+    pt.EntryImage,
+    pt.ExitImage
 FROM dbo.ParkingSessions pt
 LEFT JOIN dbo.Cards c ON c.CardID = pt.CardID
 JOIN dbo.Floors f ON f.FloorID = pt.EntryFloorID
