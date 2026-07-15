@@ -499,7 +499,7 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, paymentType = 'registr
             {isPaid ? '✅ Thanh toán thành công!' : 'Thanh toán qua VNPay'}
           </span>
           {!isPaid && (
-            <button onClick={onClose} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
+            <button onClick={handleCancel} className="text-white/80 hover:text-white"><X className="w-4 h-4" /></button>
           )}
         </div>
 
@@ -551,20 +551,6 @@ function PaymentQrModal({ orderCode, qrCode, checkoutUrl, paymentType = 'registr
                 className="px-4 py-1.5 border border-red-300 text-red-600 text-sm rounded hover:bg-red-50 transition-colors"
               >
                 Hủy thanh toán
-              </button>
-              <button
-                onClick={async () => {
-                  if (!orderCode) return;
-                  try {
-                    await cardService.mockPaymentSuccess(orderCode);
-                    setIsPaid(true);
-                  } catch (err: any) {
-                    alert(err.message || "Lỗi khi giả lập thanh toán.");
-                  }
-                }}
-                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded transition-colors"
-              >
-                Giả lập Thanh toán (Test)
               </button>
             </>
           )}
