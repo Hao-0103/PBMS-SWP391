@@ -47,6 +47,23 @@ export interface CardGroupDto {
   status: string;
 }
 
+export interface VehicleDto {
+  id: number;
+  plateNo: string;
+  vehicleType: string; // "MOTORCYCLE" | "CAR"
+  brand?: string;
+  model?: string;
+  color?: string;
+}
+
+export interface VehicleRequest {
+  plateNo: string;
+  vehicleType: string;
+  brand?: string;
+  model?: string;
+  color?: string;
+}
+
 export const cardService = {
   async getMyCards(): Promise<MonthlyCardDto[]> {
     const response = await authFetch(`${API_URL}/user/monthly-cards`);
@@ -104,5 +121,41 @@ export const cardService = {
     });
     const result: ApiResponse<any> = await safeJson(response);
     if (!response.ok) throw new Error(result.message || "Lỗi khi giả lập thanh toán.");
+  },
+
+  // ── Vehicle CRUD ────────────────────────────────────────────────────
+  async getMyVehicles(): Promise<VehicleDto[]> {
+    const response = await authFetch(`${API_URL}/user/my-vehicles`);
+    const result: ApiResponse<VehicleDto[]> = await safeJson(response);
+    if (!response.ok) throw new Error(result.message || "Không thể tải danh sách phương tiện.");
+    return result.data;
+  },
+
+  async addVehicle(payload: VehicleRequest): Promise<VehicleDto> {
+    const response = await authFetch(`${API_URL}/user/my-vehicles`, {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    const result: ApiResponse<VehicleDto> = await safeJson(response);
+    if (!response.ok) throw new Error(result.message || "Thêm phương tiện thất bại.");
+    return result.data;
+  },
+
+  async updateVehicle(id: number, payload: VehicleRequest): Promise<VehicleDto> {
+    const response = await authFetch(`${API_URL}/user/my-vehicles/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    });
+    const result: ApiResponse<VehicleDto> = await safeJson(response);
+    if (!response.ok) throw new Error(result.message || "Cập nhật phương tiện thất bại.");
+    return result.data;
+  },
+
+  async deleteVehicle(id: number): Promise<void> {
+    const response = await authFetch(`${API_URL}/user/my-vehicles/${id}`, {
+      method: "DELETE"
+    });
+    const result: ApiResponse<any> = await safeJson(response);
+    if (!response.ok) throw new Error(result.message || "Xóa phương tiện thất bại.");
   }
 };

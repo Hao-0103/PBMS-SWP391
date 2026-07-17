@@ -29,5 +29,6 @@ public interface CardRepository extends JpaRepository<Card, Integer> {
      */
     @Query("SELECT c FROM Card c WHERE c.status = 'ACTIVE' AND c.expireAt IS NOT NULL AND c.expireAt < :today")
     List<Card> findExpiredActiveCards(@Param("today") LocalDate today);
+
 }
 
