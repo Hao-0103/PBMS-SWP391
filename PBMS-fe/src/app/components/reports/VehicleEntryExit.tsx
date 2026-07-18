@@ -17,8 +17,8 @@ import {
 interface ReportRow {
   id: number;
   stt: number;
+  maVe: string;
   cardNo: string;
-  maThe: string;
   bienSo: string;
   tang: string;
   tgVao: string;
@@ -77,8 +77,8 @@ export default function VehicleEntryExit() {
 
   const entryCols: Column[] = [
     { key: "stt", label: "STT", width: "40px" },
+    { key: "maVe", label: "Mã vé" },
     { key: "cardNo", label: "CardNo" },
-    { key: "maThe", label: "Mã thẻ" },
     { key: "bienSo", label: "Biển số" },
     {
       key: "entryImage",
@@ -104,8 +104,8 @@ export default function VehicleEntryExit() {
 
   const exitCols: Column[] = [
     { key: "stt", label: "STT", width: "40px" },
+    { key: "maVe", label: "Mã vé" },
     { key: "cardNo", label: "CardNo" },
-    { key: "maThe", label: "Mã thẻ" },
     { key: "bienSo", label: "Biển số" },
     {
       key: "entryImage",
@@ -174,10 +174,10 @@ export default function VehicleEntryExit() {
       const result = await adminCardService.getVehicleReport(params);
       setData(
         result.map((item, index) => ({
-          id: Number(item.parkingSessionId),
+          id: Number(item.sessionId),
           stt: index + 1,
-          cardNo: item.rfidUid || "",
-          maThe: item.cardNo || "",
+          maVe: item.sessionNo || "",
+          cardNo: item.cardNo || "",
           bienSo: item.plateNo || "",
           tang: item.floorName || "",
           tgVao: formatDateTime(item.checkInAt),

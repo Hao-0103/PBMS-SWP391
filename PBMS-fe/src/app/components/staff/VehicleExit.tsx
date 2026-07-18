@@ -159,7 +159,7 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
 
       const apiKey = GEMINI_API_KEY;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-robotics-er-1.6-preview:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -339,7 +339,7 @@ export default function VehicleExit({ selectedFloorCode }: VehicleExitProps) {
     try {
       const apiKey = GEMINI_API_KEY;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-robotics-er-1.6-preview:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -891,29 +891,9 @@ export interface VehicleReportParams {
  * Chứa đầy đủ thông tin hình ảnh camera chụp lúc vào/ra, nhân viên trực cổng, mức phí phát sinh.
  */
 export interface VehicleReportDto {
-  /**
-   * ID phiên đỗ xe (Parking Session ID) duy nhất trong hệ thống dữ liệu.
-   */
-  parkingSessionId: number;
-
-  /**
-   * Mã số phiên đỗ xe định dạng thân thiện với người dùng (ví dụ: "PS-20260718-0001").
-   */
-  parkingSessionNo: string;
-
-  /**
-   * Mã số thẻ vật lý được quẹt để thực hiện phiên đỗ xe này.
-   */
+  sessionId: number;
+  sessionNo: string;
   cardNo: string;
-
-  /**
-   * Mã UID của thẻ RFID được nhận dạng tại đầu đọc.
-   */
-  rfidUid: string;
-
-  /**
-   * Biển số xe được nhận diện tự động hoặc do nhân viên nhập thủ công.
-   */
   plateNo: string;
 
   /**

@@ -149,10 +149,42 @@ public class AssignmentServiceImpl implements AssignmentService {
         Staff staff = staffRepository.findByAccountId(staffAccount.getAccountId())
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy hồ sơ nhân viên"));
 
-        Optional<StaffAssignment> activeAssignment = staffAssignmentRepository
-                .findFirstByStaffIdAndWorkDateAndStatusNot(staff.getStaffId(), LocalDate.now(), "CANCELLED");
+        LocalDate today = LocalDate.now();
+        LocalDate yesterday = today.minusDays(1);
+        LocalDateTime now = LocalDateTime.now();
 
-        return activeAssignment.map(this::mapToResponse).orElse(null);
+        List<StaffAssignment> assignments = staffAssignmentRepository
+                .findByStaffIdAndWorkDateInAndStatusNot(staff.getStaffId(), List.of(yesterday, today), "CANCELLED");
+
+        StaffAssignment activeAssignment = null;
+        StaffAssignment todayAssignment = null;
+
+        for (StaffAssignment assignment : assignments) {
+            if (assignment.getWorkDate().equals(today)) {
+                todayAssignment = assignment;
+            }
+
+            WorkShift shift = workShiftRepository.findById(assignment.getShiftId()).orElse(null);
+            if (shift != null) {
+                LocalDateTime startDateTime = assignment.getWorkDate().atTime(shift.getStartTime());
+                LocalDateTime endDateTime = assignment.getWorkDate().atTime(shift.getEndTime());
+
+                if (shift.getEndTime().isBefore(shift.getStartTime()) || shift.getEndTime().equals(shift.getStartTime())) {
+                    endDateTime = endDateTime.plusDays(1);
+                }
+
+                if (now.isAfter(startDateTime.minusHours(1)) && now.isBefore(endDateTime.plusHours(1))) {
+                    activeAssignment = assignment;
+                    break;
+                }
+            }
+        }
+
+        if (activeAssignment == null) {
+            activeAssignment = todayAssignment;
+        }
+
+        return activeAssignment != null ? mapToResponse(activeAssignment) : null;
     }
 
     private StaffAssignmentResponse mapToResponse(StaffAssignment assignment) {

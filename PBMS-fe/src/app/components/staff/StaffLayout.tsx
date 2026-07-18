@@ -62,6 +62,41 @@ export default function StaffLayout({
       // If not assigned today, hide entry/exit operations
       return item.screen !== "vehicle-entry" && item.screen !== "vehicle-exit";
     }
+    
+    if (assignment.shiftTime) {
+      try {
+        const [startStr, endStr] = assignment.shiftTime.split(" – ");
+        if (startStr && endStr) {
+          const [startH, startM] = startStr.split(":").map(Number);
+          const [endH, endM] = endStr.split(":").map(Number);
+          
+          const now = new Date();
+          const shiftStart = new Date(now);
+          shiftStart.setHours(startH, startM, 0, 0);
+          
+          const shiftEnd = new Date(now);
+          shiftEnd.setHours(endH, endM, 0, 0);
+          
+          if (shiftEnd < shiftStart) {
+            if (now.getHours() < endH || (now.getHours() === endH && now.getMinutes() <= endM)) {
+              shiftStart.setDate(shiftStart.getDate() - 1);
+            } else {
+              shiftEnd.setDate(shiftEnd.getDate() + 1);
+            }
+          }
+          
+          const bufferStart = new Date(shiftStart.getTime() - 60 * 60 * 1000);
+          const bufferEnd = new Date(shiftEnd.getTime() + 60 * 60 * 1000);
+          
+          if (now < bufferStart || now > bufferEnd) {
+            return item.screen !== "vehicle-entry" && item.screen !== "vehicle-exit";
+          }
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
+    }
+
     return true;
   });
 

@@ -75,16 +75,56 @@ export default function StaffApp({ staffName, onLogout }: StaffAppProps) {
       );
     }
 
-    // Check if staff has no active assignment today (only blocks entry/exit actions)
-    if (!assignment && (screen === "vehicle-entry" || screen === "vehicle-exit")) {
+    // Check if staff has no active assignment today or shift hasn't started
+    const isShiftActive = () => {
+      if (!assignment) return false;
+      if (!assignment.shiftTime) return true;
+      try {
+        const [startStr, endStr] = assignment.shiftTime.split(" – ");
+        if (!startStr || !endStr) return true;
+        
+        const [startH, startM] = startStr.split(":").map(Number);
+        const [endH, endM] = endStr.split(":").map(Number);
+        
+        const now = new Date();
+        const shiftStart = new Date(now);
+        shiftStart.setHours(startH, startM, 0, 0);
+        
+        const shiftEnd = new Date(now);
+        shiftEnd.setHours(endH, endM, 0, 0);
+        
+        if (shiftEnd < shiftStart) {
+          if (now.getHours() < endH || (now.getHours() === endH && now.getMinutes() <= endM)) {
+            shiftStart.setDate(shiftStart.getDate() - 1);
+          } else {
+            shiftEnd.setDate(shiftEnd.getDate() + 1);
+          }
+        }
+        
+        // Cho phép sớm 1 tiếng và muộn 1 tiếng
+        const bufferStart = new Date(shiftStart.getTime() - 60 * 60 * 1000);
+        const bufferEnd = new Date(shiftEnd.getTime() + 60 * 60 * 1000);
+        
+        return now >= bufferStart && now <= bufferEnd;
+      } catch (e) {
+        return true;
+      }
+    };
+
+    const shiftActive = isShiftActive();
+
+    if ((!assignment || !shiftActive) && (screen === "vehicle-entry" || screen === "vehicle-exit")) {
       return (
         <div className="flex flex-col items-center justify-center py-20 px-4">
           <div className="bg-white border border-amber-200 rounded-lg p-6 max-w-md shadow-md text-center">
             <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-            <h2 className="text-base font-bold text-gray-800 mb-2">Bạn chưa được phân công ca trực</h2>
+            <h2 className="text-base font-bold text-gray-800 mb-2">
+              {!assignment ? "Bạn chưa được phân công ca trực" : "Ngoài giờ làm việc"}
+            </h2>
             <p className="text-xs text-gray-500 leading-relaxed mb-4">
-              Hệ thống không tìm thấy lịch phân công trực hoạt động của bạn cho ngày hôm nay. 
-              Vui lòng liên hệ với Admin hoặc Tổ trưởng ca để được phân công Tầng làm việc.
+              {!assignment 
+                ? "Hệ thống không tìm thấy lịch phân công trực hoạt động của bạn cho ngày hôm nay. Vui lòng liên hệ với Admin hoặc Tổ trưởng ca để được phân công Tầng làm việc."
+                : `Ca làm việc của bạn là từ ${assignment.shiftTime}. Hiện tại không nằm trong thời gian trực của bạn.`}
             </p>
             <button 
               onClick={loadData}
