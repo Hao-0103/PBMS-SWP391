@@ -173,7 +173,7 @@ export default function VehicleEntry({ selectedFloorCode }: VehicleEntryProps) {
 
       const apiKey = GEMINI_API_KEY;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-robotics-er-1.6-preview:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: {
@@ -316,7 +316,12 @@ export default function VehicleEntry({ selectedFloorCode }: VehicleEntryProps) {
         setLoaiXe(regType);
       }
 
-      setSuccessMsg(`Xác thực thành công vé đặt trước: ${targetCode}!`);
+      if (registrationInfo.floorCode && registrationInfo.floorCode.toUpperCase() !== selectedFloorCode.toUpperCase()) {
+        setErrorMsg(`Sai tầng! Vé này được đăng ký ở tầng ${registrationInfo.floorCode}, nhưng bạn đang trực ở tầng ${selectedFloorCode}.`);
+      } else {
+        setSuccessMsg(`Xác thực thành công vé đặt trước: ${targetCode}!`);
+      }
+      
       setActiveScanner(null);
       setScanningTicket(false);
       setUploadedImagePreview(null);
@@ -337,7 +342,7 @@ export default function VehicleEntry({ selectedFloorCode }: VehicleEntryProps) {
     try {
       const apiKey = GEMINI_API_KEY;
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-robotics-er-1.6-preview:generateContent?key=${apiKey}`,
         {
           method: "POST",
           headers: {

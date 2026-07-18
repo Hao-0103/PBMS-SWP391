@@ -43,7 +43,7 @@ public class ReportServiceImpl implements ReportService {
                     if (keyword != null && !keyword.trim().isEmpty()) {
                         String kw = keyword.trim().toLowerCase();
                         boolean matchPlate = s.getPlateNoSnapshot() != null && s.getPlateNoSnapshot().toLowerCase().contains(kw);
-                        boolean matchTicketNo = s.getSessionNo() != null && s.getSessionNo().toLowerCase().contains(kw);
+                        boolean matchTicketNo = s.getBarcode() != null && s.getBarcode().toLowerCase().contains(kw);
                         if (!matchPlate && !matchTicketNo) return false;
                     }
 
@@ -137,7 +137,7 @@ public class ReportServiceImpl implements ReportService {
 
         return new VehicleReportResponse(
                 session.getSessionId(),
-                session.getSessionNo(),
+                session.getBarcode(),
                 session.getPlateNoSnapshot(),
                 session.getVehicleType(),
                 cardNo,
