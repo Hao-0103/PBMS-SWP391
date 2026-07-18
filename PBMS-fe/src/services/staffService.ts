@@ -312,9 +312,9 @@ export const staffService = {
     return result.data;
   },
 
-  async getPreBookedDetails(code: string): Promise<{ plate: string; type: string; status: string }> {
+  async getPreBookedDetails(code: string): Promise<{ plate: string; type: string; status: string; floorCode?: string }> {
     const response = await authFetch(`${API_URL}/staff/prebooked/${code}`);
-    const result: ApiResponse<{ plate: string; type: string; status: string }> = await safeJson(response);
+    const result: ApiResponse<{ plate: string; type: string; status: string; floorCode?: string }> = await safeJson(response);
     if (!response.ok) throw new Error(result.message || "Không thể tải thông tin thẻ/đặt trước.");
     return result.data;
   },

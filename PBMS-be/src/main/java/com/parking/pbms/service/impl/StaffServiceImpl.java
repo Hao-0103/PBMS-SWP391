@@ -123,6 +123,13 @@ public class StaffServiceImpl implements StaffService {
                     throw new RuntimeException("Loại xe không khớp với loại xe đăng ký trên thẻ");
                 }
 
+                if (card.getPreferredFloorID() != null) {
+                    Floor cardFloor = floorRepository.findById(card.getPreferredFloorID()).orElse(null);
+                    if (cardFloor != null && !cardFloor.getFloorCode().equalsIgnoreCase(request.floorCode())) {
+                        throw new RuntimeException("Sai tầng! Thẻ tháng này được đăng ký ở tầng " + cardFloor.getFloorCode() + ", nhưng bạn đang trực ở tầng " + request.floorCode());
+                    }
+                }
+
                 // Check if card is already inside
                 Optional<ParkingSession> activeTicket = ParkingSessionRepository
                         .findFirstByCardIdAndStatusOrderByCheckInAtDesc(card.getCardId(), "ACTIVE");
@@ -156,6 +163,13 @@ public class StaffServiceImpl implements StaffService {
 
                 if (!vehicle.getVehicleType().trim().equalsIgnoreCase(vehicleType)) {
                     throw new RuntimeException("Loại xe không khớp với loại xe đăng ký của đơn đặt trước");
+                }
+
+                if (res.getFloorId() != null) {
+                    Floor resFloor = floorRepository.findById(res.getFloorId()).orElse(null);
+                    if (resFloor != null && !resFloor.getFloorCode().equalsIgnoreCase(request.floorCode())) {
+                        throw new RuntimeException("Sai tầng! Đơn đặt trước này ở tầng " + resFloor.getFloorCode() + ", nhưng bạn đang trực ở tầng " + request.floorCode());
+                    }
                 }
 
                 Optional<ParkingSession> activeTicket = ParkingSessionRepository
@@ -602,7 +616,7 @@ public class StaffServiceImpl implements StaffService {
 
             return new StaffTransactionResponse(
                     ticket.getSessionId(),
-                    ticket.getSessionNo() != null ? ticket.getSessionNo() : "TK" + String.format("%06d", ticket.getSessionId()),
+                    ticket.getBarcode() != null ? ticket.getBarcode() : "TK" + String.format("%06d", ticket.getSessionId()),
                     ticket.getPlateNoSnapshot(),
                     vehicleDisplay,
                     ticketDisplay,
@@ -641,10 +655,19 @@ public class StaffServiceImpl implements StaffService {
             Vehicle vehicle = vehicleRepository.findById(card.getVehicleId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy phương tiện đăng ký cho thẻ tháng này"));
 
+            String floorCode = "";
+            if (card.getPreferredFloorID() != null) {
+                Floor floor = floorRepository.findById(card.getPreferredFloorID()).orElse(null);
+                if (floor != null) {
+                    floorCode = floor.getFloorCode();
+                }
+            }
+
             result.put("plate", vehicle.getPlateNo());
             String typeDisplay = vehicle.getVehicleType().equalsIgnoreCase("CAR") ? "Ô tô" : "Xe máy";
             result.put("type", typeDisplay);
             result.put("status", card.getStatus());
+            result.put("floorCode", floorCode);
             return result;
         } else if (cleanCode.startsWith("RES")) {
             Reservation res = reservationRepository.findByReservationNo(cleanCode)
@@ -661,10 +684,19 @@ public class StaffServiceImpl implements StaffService {
             Vehicle vehicle = vehicleRepository.findById(res.getVehicleId())
                     .orElseThrow(() -> new RuntimeException("Không tìm thấy phương tiện đăng ký cho đơn đặt trước"));
 
+            String floorCode = "";
+            if (res.getFloorId() != null) {
+                Floor floor = floorRepository.findById(res.getFloorId()).orElse(null);
+                if (floor != null) {
+                    floorCode = floor.getFloorCode();
+                }
+            }
+
             result.put("plate", vehicle.getPlateNo());
             String typeDisplay = vehicle.getVehicleType().equalsIgnoreCase("CAR") ? "Ô tô" : "Xe máy";
             result.put("type", typeDisplay);
             result.put("status", res.getStatus());
+            result.put("floorCode", floorCode);
             return result;
         } else {
             throw new RuntimeException("Mã đặt trước không hợp lệ (Phải bắt đầu bằng CARD hoặc RES)");

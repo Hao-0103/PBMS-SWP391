@@ -16,6 +16,12 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             String status
     );
 
+    List<StaffAssignment> findByStaffIdAndWorkDateInAndStatusNot(
+            Integer staffId,
+            List<LocalDate> workDates,
+            String status
+    );
+
 
     // Check conflicts for a staff member and shift on a date (not cancelled)
     Optional<StaffAssignment> findFirstByStaffIdAndWorkDateAndShiftIdAndStatusNot(

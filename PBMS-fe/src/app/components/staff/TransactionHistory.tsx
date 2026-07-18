@@ -24,6 +24,7 @@ export default function TransactionHistory() {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [bienSo, setBienSo] = useState("");
+  const [maVe, setMaVe] = useState("");
   
   const [transactions, setTransactions] = useState<TransactionDto[]>([]);
   const [filtered, setFiltered] = useState<TransactionDto[]>([]);
@@ -59,6 +60,11 @@ export default function TransactionHistory() {
       result = result.filter(t => t.bienSo.toLowerCase().includes(term));
     }
     
+    if (maVe.trim()) {
+      const term = maVe.toLowerCase().trim();
+      result = result.filter(t => t.maVe && t.maVe.toLowerCase().includes(term));
+    }
+    
     if (fromDate) {
       const start = new Date(fromDate + "T00:00:00").getTime();
       result = result.filter(t => new Date(t.tgVao).getTime() >= start);
@@ -77,6 +83,7 @@ export default function TransactionHistory() {
     setFromDate("");
     setToDate("");
     setBienSo("");
+    setMaVe("");
     setFiltered(transactions);
     setPage(1);
   };
@@ -111,6 +118,16 @@ export default function TransactionHistory() {
               className="h-[34px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400 w-[150px]"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">Mã vé</label>
+            <input
+              className="h-[34px] border border-gray-300 rounded px-3 text-sm focus:outline-none focus:border-blue-400 w-[160px] uppercase font-semibold"
+              placeholder="Tìm mã vé..."
+              value={maVe}
+              onChange={e => setMaVe(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSearch()}
             />
           </div>
           <div>
